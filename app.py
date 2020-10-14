@@ -7,5 +7,8 @@ app = Flask(__name__)
 # Webroot
 @app.route("/")
 def index():
-    names = ["Alice", "Bob", "Charlie"]
-    return render_template("index.html", names=names)
+    return render_template("index.html")
+
+@app.route("/more")
+def more():
+    return render_template("more.html")

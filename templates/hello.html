@@ -1,13 +1,9 @@
 {% extends "layout.html" %}
 
 {% block heading %}
-	Second Page
+	Hello!
 {% endblock %}
 
 {% block body %}
-	<p>
-		Moar stuffage!
-	</p>
-
-	<a href="{{ url_for('index') }}">Go back</a>
+	Hello, {{ name }}!
 {% endblock %}

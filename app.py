@@ -1,3 +1,4 @@
+import datetime
 from flask import Flask, render_template
 
 # Create new Flask web application
@@ -6,5 +7,6 @@ app = Flask(__name__)
 # Webroot
 @app.route("/")
 def index():
-    headline = "Hello!"
-    return render_template("index.html", headline=headline)
+    now = datetime.datetime.now()
+    new_year = now.month == 1 and now.day == 1
+    return render_template("index.html", new_year=new_year)

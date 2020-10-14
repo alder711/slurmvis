@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, render_template
 
 # Create new Flask web application
 app = Flask(__name__)
@@ -6,13 +6,4 @@ app = Flask(__name__)
 # Webroot
 @app.route("/")
 def index():
-    return "Hello, World!"
-
-@app.route("/trevor")
-def trevor():
-    return "Hello, Trevor!"
-
-@app.route("/<string:name>")
-def hello(name):
-    name = name.capitalize()
-    return f"<h1>Hello, {name}!</h1>"
+    return render_template("index.html")

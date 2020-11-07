@@ -1,0 +1,56 @@
+#!/bin/bash
+
+set -o pipefail
+set -o nounset
+
+PATH=${PATH}:../bin
+
+LOGDIR=../logs
+TSTAMP=$(date +%y%m%d.%H%M)
+PWD=$(pwd)
+IAM=$(basename ${PWD})
+JOBNAME=${IAM}-
+TSTAMP=$(date +%y%m%d.%H%M)
+
+QSTATS_PARAMETERS="-V -c -b -B -P -R"
+QSTATS_STDOUT_PARAMETERS="-D ${QSTATS_PARAMETERS}"
+
+prepOut() {
+  mkdir -p ${LOGDIR}/${TSTAMP}
+  touch "${LOGDIR}/${TSTAMP}/${IAM}"
+}
+
+dumpStats() {
+  logger -t ${IAM} -- "dump queue stats: begin"
+  echo "Output: ${LOGDIR}/${TSTAMP}/${IAM}"
+  qstats.sh ${QSTATS_STDOUT_PARAMETERS} | tee ${LOGDIR}/${TSTAMP}/${IAM}
+  qstats.sh ${QSTATS_PARAMETERS}
+  logger -t ${IAM} -- "dump queue stats: end"
+}
+
+fillQueue() {
+  for j in `seq 0 9`
+  do
+    sbatch --time=1:00 -N 1 -J ${JOBNAME}${j} --quiet --chdir=/tmp --wrap="sleep 10; date"
+  done
+
+  sbatch --time=2:00 -N 2 -J ${JOBNAME}10 --quiet --chdir=/tmp --wrap="sleep 45; date"
+
+  for j in `seq 11 20`
+  do
+    sbatch --time=1:00 -N 1 -J ${JOBNAME}${j} --quiet --chdir=/tmp --wrap="sleep 10; date"
+  done
+}
+
+main() {
+  prepOut
+  # collect default partition (shared)
+  scontrol update partition=shared state=down
+  fillQueue
+  scontrol update partition=shared state=up
+  dumpStats
+  #if a user is monitoring, give them a chance to review
+  sleep 3
+}
+main
+exit 0

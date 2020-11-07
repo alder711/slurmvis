@@ -1,0 +1,4 @@
+CLUSTERNAME vc
+QUEUELENGTH[blocked]  0
+QUEUELENGTH[pending] 0
+QUEUELENGTH[running] 0

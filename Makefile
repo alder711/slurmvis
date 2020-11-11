@@ -12,6 +12,7 @@ prereq:
 	# Check to see if in virtual environment
 	@python3 -c "import sys; sys.exit(0) if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix) else sys.exit(1)" || \
 		( echo "Not in a venv, creating..." ; python3 -m venv "$(MKFILE_DIR)" )
+	# Activate venv
 	@. "$(MKFILE_DIR)"bin/activate
 	# Install required Python packages
 	@pip install -r "$(MKFILE_DIR)/requirements.txt"

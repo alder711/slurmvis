@@ -44,12 +44,13 @@ def parseFile(file):
             # This is a necessary evil, since for some reason, the current
             # version of qstats adds extra fields to the job attributes with
             # the value 'Makefile'.
-            print(f"len(pend_headings)={len(pend_headings)}, len(vals)={len(vals)}")
+            #print(f"len(pend_headings)={len(pend_headings)}, len(vals)={len(vals)}")
             vals = [ v for v in vals if v != "Makefile" ]
             #print(pend_headings)
             #print(vals)
-            print(f"len(pend_headings)={len(pend_headings)}, len(vals)={len(vals)}")
-            for i in range(len(pend_headings)):
+            #print(f"len(pend_headings)={len(pend_headings)}, len(vals)={len(vals)}")
+            # This must do for now, until the qstats output is fixed (TODO)
+            for i in range(min(len(pend_headings), len(vals))):
                 qpending[job][pend_headings[i]] = vals[i]
             curr_line = f.readline()
         result["qpending"] = qpending
@@ -68,10 +69,11 @@ def parseFile(file):
             # version of qstats adds extra fields to the job attributes with
             # the value 'Makefile'.
             vals = [ v for v in vals if v != "Makefile" ]
-            for i in range(len(pend_headings)):
+            # This must do for now, until the qstats output is fixed (TODO)
+            for i in range(min(len(pend_headings), len(vals))):
                 qrunning[job][pend_headings[i]] = vals[i]
             curr_line = f.readline()
-            print(qrunning)
+        #print("[DEBUG]: Final qrunning:", qrunning)
         result["qrunning"] = qrunning
         result["qlen"] = qlen
 
@@ -79,5 +81,5 @@ def parseFile(file):
 
 if __name__ == "__main__":
     #result = parseFile("sample-files/qpat/logs/201005.1648/2.small-short-full")
-    result = parseFile("sample-files/qpat/logs/201005.1648/tester")
-    #print(result)
+    result = parseFile("sample-files/qpat/logs/201005.1648/2.small-short-full")
+    print(result)

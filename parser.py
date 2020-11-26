@@ -7,6 +7,8 @@
 # The purpose of this script is to parse the results of Steven Senator's `qpat'
 # Slurm queue example trace generator.
 
+import json
+
 ERR_INVALID_FILE = 1
 
 def parseFile(file):
@@ -83,3 +85,7 @@ if __name__ == "__main__":
     #result = parseFile("sample-files/qpat/logs/201005.1648/2.small-short-full")
     result = parseFile("sample-files/qpat/logs/201005.1648/2.small-short-full")
     print(result)
+    result_json = json.dumps(result)
+    with open("testout.json", "w") as f:
+        f.write(result_json)
+

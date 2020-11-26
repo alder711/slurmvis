@@ -23,3 +23,8 @@ def index():
         session["notes"].append(note)
 
     return render_template("index.html", notes=session["notes"])
+
+#Development with D3
+@app.route("/test")
+def test():
+    return render_template("d3-test.html")

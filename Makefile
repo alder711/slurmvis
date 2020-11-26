@@ -2,7 +2,8 @@
 MKFILE_DIR=$(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 
 run: prereq
-	export FLASK_APP=app.py
+	FLASK_APP=app.py \
+	FLASK_DEBUG=1 \
 	flask run
 
 prereq:

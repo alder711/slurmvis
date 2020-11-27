@@ -3,12 +3,20 @@
 {% block heading %}
 	<meta charset="utf-8">
 	<title>D3 Testing</title>
-	<script type="text.javascript" src="d3/d3.js"></script>
+	<script type="text/javascript" src="static/d3/d3.js"></script>
 {% endblock %}
 
 {% block body %}
-	<script type="text/javascript">
-		// Stuff
-	</script>
-	Testerhole
+		<script type="text/javascript">
+			// Variables
+			var datafile = "static/testout.json";
+			// Stuff
+			// Load in data
+			d3.json(datafile)
+				.then(function(data) {
+					dataset = data;
+					console.log(dataset.qrunning);
+				});
+		</script>
+		Testerhole
 {% endblock %}

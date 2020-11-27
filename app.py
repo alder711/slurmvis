@@ -1,6 +1,8 @@
 import datetime
-from flask import Flask, render_template, request, session
+from flask import Flask, render_template, request, redirect, url_for, session
 from flask_session import Session # Be able to store sessions server-side
+import json
+import qstatparser as qsp
 
 # Create new Flask web application
 app = Flask(__name__)
@@ -14,17 +16,22 @@ Session(app)
 
 
 # Webroot
-@app.route("/", methods=["GET", "POST"])
+@app.route("/")
 def index():
-    if session.get("notes") is None:
-        session["notes"] = []
-    if request.method == "POST":
-        note = request.form.get("note")
-        session["notes"].append(note)
+    qsp.parseFilename("201005.1648/1.idle", "testout.json")
+    json_data=None
+    with open("static/testout.json", "r") as f:
+        json_data = f.readline()
+    return render_template("d3-test.html", d3_dataset=json_data)
 
-    return render_template("index.html", notes=session["notes"])
 
-#Development with D3
-@app.route("/test")
-def test():
-    return render_template("d3-test.html")
+# Update Slurm qpat file
+@app.route("/api/v0/fetch", methods=["GET"])
+def fetchFile():
+    filename = request.args.get("filename")
+    json_data = None
+    if filename:
+        qsp.parseFilename(filename, "testout.json") 
+        with open("static/testout.json", "r") as f:
+            json_data = f.readline()
+    return json.loads(json_data)

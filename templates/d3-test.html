@@ -14,8 +14,29 @@
         <h3>Test of D3 Stuff</h1>
 
         <div id="dataupdate-container">
+            <!-- Radio buttons for data source presets -->
+            <input type="radio" id="data-selection-1" name="data-selection" value="custom" checked>
+            <label for="data-selection-1">custom</label><br>
+            <input type="radio" id="data-selection-2" name="data-selection" value="idle">
+            <label for="data-selection-2">idle</label><br>
+            <input type="radio" id="data-selection-3" name="data-selection" value="small-short-full">
+            <label for="data-selection-3">small-short-full</label><br>
+            <input type="radio" id="data-selection-4" name="data-selection" value="large-head-long-small-tail">
+            <label for="data-selection-4">large-head-long-small-tail</label><br>
+            <input type="radio" id="data-selection-5" name="data-selection" value="large-head-long-small-tail-backfill-drain-gap">
+            <label for="data-selection-5">large-head-long-small-tail-backfill-drain-gap</label><br>
+            <input type="radio" id="data-selection-6" name="data-selection" value="large-head-long-small-tail-backfill-gap-filled-jobs-running">
+            <label for="data-selection-5">large-head-long-small-tail-backfill-gap-filled-jobs-running</label><br>
+            <input type="radio" id="data-selection-7" name="data-selection" value="arbitrary-random">
+            <label for="data-selection-7">arbitrary-random</label><br>
+            <input type="radio" id="data-selection-8" name="data-selection" value="dependent-jobs-tail">
+            <label for="data-selection-8">dependent-jobs-tail</label><br>
+            <input type="radio" id="data-selection-9" name="data-selection" value="tester">
+            <label for="data-selection-9">tester</label><br>
+            <!-- Custom data source input -->
             <label for="filename">File:</label>
             <input type="text" id="update-data-input" name="update-data" value="201005.1648/5.large-head-long-small-tail-backfill-gap-filled-jobs-running"><br><br>
+            <!-- Submit button -->
             <button id="update-datafile-button" value="Update">Update</button>
         </div>
         <div id="datavis-container">
@@ -59,11 +80,11 @@
              * Functions
              */
             // Function to get data from server and present it
-            var fetchData = function() {
+            var fetchData = function(source) {
                     $.ajax({
                         url: "/api/v0/fetch",
                         data: {
-                            filename: document.getElementById("update-data-input").value
+                            filename: source 
                         },
                         success: function(result) {
                             if( result ) {
@@ -87,54 +108,30 @@
                     {"label": "pending", "value": dataset.qpending.length},
                     {"label": "blocked", "value": dataset.qblocked.length}
                 ];
-                console.log(pie_data);
                 // Draw SVG area
                 svg = d3.select("#datavis-container")
                     .append("svg")
                         .attr("width", width)
                         .attr("height", height)
-                // Define colors to use
-                color = d3.scaleOrdinal()
-                    .domain(pie_data.map(function(d){ return d.value; }))
-                    .range(colors);
-                // Create groups per pie wedge
-                arcs = svg.selectAll("g.arc")
-                    .data(pie(pie_data)) // Use generated pie data for wedge groups
-                    .enter()
                     .append("g")
-                    .attr("class", "arc")
-                    .attr("transform", "translate(" + outer_radius + ", " + outer_radius + ")"); // Shift group over and down by outer radius
-                // Draw arc paths
-                arcs.append("path")
-                    .attr("fill", function(d) {
-                        return color(d.value);
-                    })
-                    .attr("d", arc); // Use the arc function to generate the path
-                // Generate text labels
-                arcs.append("text")
-                    .attr("transform", function(data) {
-                        return "translate(" + arc.centroid(data) + ")"; // Put text at mathematical center of wedge
-                    })
-                    .attr("text-anchor", "middle") // Anchor text at the middle of it
-                    .text(function(data) {
-                        if( data.value > 0 ) {
-                            return data.data.label; // We must use .value because we converted to pie data
-                        } else {
-                            return;
-                        }
-                    });
-
+                        .attr("transform", "translate(" + outer_radius + ", " + outer_radius + ")"); // Shift group over and down by outer radius
+                updateData(dataset);
             };
             // Function to update dataset (called after request to server)
             var updateData = function(newdata) {
                 dataset = newdata;
-                console.log(dataset);
                 // Process pie-specific data
                 pie_data = [
                     {"label": "running", "value": dataset.qrunning.length},
                     {"label": "pending", "value": dataset.qpending.length},
                     {"label": "blocked", "value": dataset.qblocked.length}
                 ];
+                // Check for case of no jobs
+                if( pie_data[0].value == pie_data[1].value && pie_data[1].value == pie_data[2].value && pie_data[2].value == 0 ){
+                    pie_data = [
+                        {"label": "no jobs", "value": 1}
+                    ];
+                }
                 // Define colors to use
                 color = d3.scaleOrdinal()
                     .domain(pie_data.map(function(d){ return d.value; }))
@@ -143,20 +140,25 @@
                 arcs = svg.selectAll("g.arc")
                     .data(pie(pie_data)); // Use generated pie data for wedge groups
                 // Draw arc paths
-                arcs.append("path")
-                    .attr("fill", function(d) {
-                        return color(d.value);
+                arcs
+                    .enter()
+                    .append("path")
+                    .attr("class", "arc")
+                    .attr("fill", function(d, i) {
+                        return color(i); // Color is dependent on index of category (queue)
                     })
-                    .attr("d", arc); // Use the arc function to generate the path
+                    .attr("d", arc) // Use the arc function to generate the path
                 // Generate text labels
-                arcs.append("text")
-                    .attr("transform", function(data) {
-                        return "translate(" + arc.centroid(data) + ")"; // Put text at mathematical center of wedge
+                arcs
+                    .enter()
+                    .append("text")
+                    .attr("transform", function(d) {
+                        return "translate(" + arc.centroid(d) + ")"; // Put text at mathematical center of wedge
                     })
                     .attr("text-anchor", "middle") // Anchor text at the middle of it
-                    .text(function(data) {
-                        if( data.value > 0 ) {
-                            return data.data.label; // We must use .value because we converted to pie data
+                    .text(function(d) {
+                        if( d.value > 0 ) {
+                            return d.data.label; // We must use .value because we converted to pie data
                         } else {
                             return;
                         }
@@ -168,13 +170,51 @@
              */
             // Get data from server and present it
             initData();
+
             /*
              * Event Handlers
              */
             // Update data if update button clicked
             $( "#update-datafile-button" )
                 .on( "click", function() {
-                    fetchData();
+                    var radio_val = $( "input[name='data-selection']:checked").val();
+                    var source;
+                    var prefix = "201005.1648/";
+                    if( radio_val ){
+                        switch( radio_val ){
+                            case "custom":
+                                source = document.getElementById("update-data-input").value;
+                                break;
+                            case "idle":
+                                source = prefix + "1.idle";
+                                break;
+                            case "small-short-full":
+                                source = prefix + "2.small-short-full";
+                                break;
+                            case "large-head-long-small-tail":
+                                source = prefix + "3.large-head-long-small-tail";
+                                break;
+                            case "large-head-long-small-tail-backfill-drain-gap":
+                                source = prefix + "4.large-head-long-small-tail-backfill-drain-gap";
+                                break;
+                            case "large-head-long-small-tail-backfill-gap-filled-jobs-running":
+                                source = prefix + "5.large-head-long-small-tail-backfill-gap-filled-jobs-running";
+                                break;
+                            case "arbitrary-random":
+                                source = prefix + "6.arbitrary-random";
+                                break;
+                            case "dependent-jobs-tail":
+                                source = prefix + "7.dependent-jobs-tail";
+                                break;
+                            case "tester":
+                                source = prefix + "tester";
+                                break;
+                            default:
+                                console.log("Unknown option: " + radio_val);
+                                return;
+                        }
+                    }
+                    fetchData(source);
                 });
         </script>
 {% endblock %}

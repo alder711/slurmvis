@@ -25,16 +25,37 @@
 				dataset = newdata;
 				console.log("Updated dataset: ");
 				console.log(dataset);
-			}
+				console.log("qblock: " + dataset.qlen.blocked);
+				dataset.qblocked.forEach(function(job) {
+					console.log(job.JobId);
+				});
+				console.log("qpend: " + dataset.qlen.pending);
+				dataset.qpending.forEach(function(job) {
+					console.log(job.JobId);
+				});
+				console.log("qrun: " + dataset.qlen.running);
+				dataset.qrunning.forEach(function(job) {
+					console.log(job.JobId);
+				});
+			};
 
 		</script>
 
-		<!-- BODY HTML -->
-		Testerhole
-		<label for="filename">File:</label>
-		<input type="text" id="update-data-input" name="update-data" value="201005.1648/5.large-head-long-small-tail-backfill-gap-filled-jobs-running"><br><br>
-		<button id="update-datafile-button" value="Update">Update</button>
-		<!-- /BODY HTML -->
+		<!-- 
+		---- BODY HTML
+		--->
+		<h3>Test of D3 Stuff</h1>
+
+		<div id="dataupdate-container">
+			<label for="filename">File:</label>
+			<input type="text" id="update-data-input" name="update-data" value="201005.1648/5.large-head-long-small-tail-backfill-gap-filled-jobs-running"><br><br>
+			<button id="update-datafile-button" value="Update">Update</button>
+		</div>
+		<div id="datavis-container">
+		</div>
+		<!-- 
+		---- /BODY HTML
+		--->
 
 		<script type="text/javascript">
 			// Update data if update button clicked

@@ -42,10 +42,10 @@ def parseFileDict(file):
             # Add current job to blocked queue
             qblocked.append(curr_job)
             curr_line = f.readline()
-        result["qblocked"] = qblocked
         #
         # Parse possible number of items in the blocked queue
         #
+        # NOTE: Parsed queue lengths are not used. Instead, we calculate them.
         qlen = {}
         qlen["blocked"] = curr_line.split()[-1].rstrip()
         #
@@ -61,7 +61,7 @@ def parseFileDict(file):
             # Read in the header line
             curr_line = f.readline()
             # Parse the headers
-            pend_headings = curr_line.split()[1:]
+            pend_headings = curr_line.split()[:]
             # Read next possible job line
             curr_line = f.readline()
             # Until we reach the qrunning QUEUELENGTH line,
@@ -84,8 +84,6 @@ def parseFileDict(file):
                 qpending.append(curr_job)
                 # Read next potential job line
                 curr_line = f.readline()
-        # Add all parsed pending jobs to the qpending queue
-        result["qpending"] = qpending
         #
         # Parse possible number of items in the running queue
         #
@@ -110,6 +108,55 @@ def parseFileDict(file):
                     curr_job[pend_headings[i]] = vals[i]
                 qrunning.append(curr_job)
                 curr_line = f.readline()
+
+        #
+        # Remove duplicate job entries
+        #
+        # Interestingly, qstats just spits out job information as it is available,
+        # so jobs in the running queue will most likely also be in the pending
+        # queue as well, according to qstats, which is incorrect. Thus, we must
+        # fix this here.
+        # Get IDs of running jobs
+        qpending_real = []
+        # For each pending job,
+        for pendjob in qpending:
+            duplicate=False
+            # For each running job,
+            for runjob in qrunning:
+                # See if running job is in pending queue
+                if pendjob["JobId"] == runjob["JobId"]:
+                    duplicate=True
+            # If current running job is in pending queue,
+            if not duplicate:
+                # Add it to real pending queue
+                qpending_real.append(pendjob)
+        qblocked_real = []
+        # For each blocked job,
+        for blockjob in qblocked:
+            duplicate_running=False
+            duplicate_pending=False
+            # For each running job,
+            for runjob in qrunning:
+                # See if running job is in blocked queue
+                if blockjob["JobId"] == runjob["JobId"]:
+                    duplicate_running=True
+            for pendjob in qpending:
+                # See if pending job is in blocked queue
+                if blockjob["JobId"] == pendjob["JobId"]:
+                    duplicate_pending=True
+            # If current running job is in pending queue,
+            if not duplicate_running and not duplicate_pending:
+                # Add it to real pending queue
+                qblocked_real.append(blockjob)
+        # Recalculate queue lengths
+        qlen["blocked"] = len(qblocked_real)
+        qlen["pending"] = len(qpending_real)
+        qlen["running"] = len(qrunning)
+
+        # Add all parsed blocked jobs to the qblocked queue
+        result["qblocked"] = qblocked_real
+        # Add all parsed pending jobs to the qpending queue
+        result["qpending"] = qpending_real
         # Add running queue to main data structure
         result["qrunning"] = qrunning
         # Add queue lengths to main data structure

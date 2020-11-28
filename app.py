@@ -18,7 +18,7 @@ Session(app)
 # Webroot
 @app.route("/")
 def index():
-    json_data = qsp.parseFile("201005.1648/1.idle")
+    json_data = qsp.parseFile("201005.1648/2.small-short-full")
     return render_template("d3-test.html", d3_dataset=json_data)
 
 

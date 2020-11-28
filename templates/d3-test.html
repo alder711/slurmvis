@@ -81,11 +81,13 @@
             // Function to initialize data when page is first loaded
             var initData = function() {
                 dataset = JSON.parse({{ d3_dataset|tojson }});
+                // Process pie-specific data
                 pie_data = [
                     {"label": "running", "value": dataset.qrunning.length},
                     {"label": "pending", "value": dataset.qpending.length},
                     {"label": "blocked", "value": dataset.qblocked.length}
                 ];
+                console.log(pie_data);
                 // Draw SVG area
                 svg = d3.select("#datavis-container")
                     .append("svg")
@@ -127,6 +129,7 @@
             var updateData = function(newdata) {
                 dataset = newdata;
                 console.log(dataset);
+                // Process pie-specific data
                 pie_data = [
                     {"label": "running", "value": dataset.qrunning.length},
                     {"label": "pending", "value": dataset.qpending.length},
@@ -158,7 +161,6 @@
                             return;
                         }
                     });
-
             };
 
             /*

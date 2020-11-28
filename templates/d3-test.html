@@ -1,83 +1,88 @@
 {% extends "layout.html" %}
 
 {% block heading %}
-	<meta charset="utf-8">
-	<title>D3 Testing</title>
-	<script type="text/javascript" src="static/js/d3-6.2.0.js"></script>
-	<script type="text/javascript" src="static/js/jquery-3.5.1.js"></script>
+    <meta charset="utf-8">
+    <title>D3 Testing</title>
+    <script type="text/javascript" src="static/js/d3-6.2.0.js"></script>
+    <script type="text/javascript" src="static/js/jquery-3.5.1.js"></script>
 {% endblock %}
 
 {% block body %}
-		<script type="text/javascript">
-			/*
-			 * Variables
-			 */
-			var dataset;
-			// On initial page load, populate dataset with server's testout.json
-			dataset = JSON.parse({{ d3_dataset|tojson }});
-			console.log("Initial dataset: ");
-			console.log(dataset);
+        <script type="text/javascript">
+            /*
+             * Variables
+             */
+            var dataset;
 
-			/*
-			 * Functions
-			 */
-			var updateData = function(newdata) {
-				dataset = newdata;
-				console.log("Updated dataset: ");
-				console.log(dataset);
-				console.log("qblock: " + dataset.qlen.blocked);
-				dataset.qblocked.forEach(function(job) {
-					console.log(job.JobId);
-				});
-				console.log("qpend: " + dataset.qlen.pending);
-				dataset.qpending.forEach(function(job) {
-					console.log(job.JobId);
-				});
-				console.log("qrun: " + dataset.qlen.running);
-				dataset.qrunning.forEach(function(job) {
-					console.log(job.JobId);
-				});
-			};
+            /*
+             * Functions
+             */
+            // Function to update dataset (called after request to server)
+            var updateData = function(newdata) {
+                dataset = newdata;
+                console.log("Updated dataset: ");
+                console.log(dataset);
+                console.log("qblock: " + dataset.qlen.blocked);
+                dataset.qblocked.forEach(function(job) {
+                    console.log(job.JobId);
+                });
+                console.log("qpend: " + dataset.qlen.pending);
+                dataset.qpending.forEach(function(job) {
+                    console.log(job.JobId);
+                });
+                console.log("qrun: " + dataset.qlen.running);
+                dataset.qrunning.forEach(function(job) {
+                    console.log(job.JobId);
+                });
+            };
 
-		</script>
+            /*
+             * Operation
+             */
+            // On initial page load, populate dataset with server's testout.json
+            dataset = JSON.parse({{ d3_dataset|tojson }});
+            console.log("Initial dataset: ");
+            console.log(dataset);
 
-		<!-- 
-		---- BODY HTML
-		--->
-		<h3>Test of D3 Stuff</h1>
+        </script>
 
-		<div id="dataupdate-container">
-			<label for="filename">File:</label>
-			<input type="text" id="update-data-input" name="update-data" value="201005.1648/5.large-head-long-small-tail-backfill-gap-filled-jobs-running"><br><br>
-			<button id="update-datafile-button" value="Update">Update</button>
-		</div>
-		<div id="datavis-container">
-		</div>
-		<!-- 
-		---- /BODY HTML
-		--->
+        <!-- 
+        ---- BODY HTML
+        --->
+        <h3>Test of D3 Stuff</h1>
 
-		<script type="text/javascript">
-			// Update data if update button clicked
-			$( "#update-datafile-button" )
-				.on( "click", function() {
-					$.ajax({
-						url: "/api/v0/fetch",
-						data: {
-							filename: document.getElementById("update-data-input").value
-						},
-						success: function(result) {
-							if( result ) {
-								updateData(result);
-							} else {
-								console.log("Result is null");
-								console.log(result);
-							}
-						},
-						fail: function(result) {
-							console.log(result);
-						}
-					});
-				});
-		</script>
+        <div id="dataupdate-container">
+            <label for="filename">File:</label>
+            <input type="text" id="update-data-input" name="update-data" value="201005.1648/5.large-head-long-small-tail-backfill-gap-filled-jobs-running"><br><br>
+            <button id="update-datafile-button" value="Update">Update</button>
+        </div>
+        <div id="datavis-container">
+        </div>
+        <!-- 
+        ---- /BODY HTML
+        --->
+
+        <script type="text/javascript">
+            // Update data if update button clicked
+            $( "#update-datafile-button" )
+                .on( "click", function() {
+                    $.ajax({
+                        url: "/api/v0/fetch",
+                        data: {
+                            filename: document.getElementById("update-data-input").value
+                        },
+                        success: function(result) {
+                            if( result ) {
+                                updateData(result);
+                            } else {
+                                console.log("Result is null");
+                                console.log(result);
+                            }
+                        },
+                        fail: function(result) {
+                            console.log(result);
+                        }
+                    });
+                });
+        </script>
 {% endblock %}

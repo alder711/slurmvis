@@ -8,44 +8,6 @@
 {% endblock %}
 
 {% block body %}
-        <script type="text/javascript">
-            /*
-             * Variables
-             */
-            var dataset;
-
-            /*
-             * Functions
-             */
-            // Function to update dataset (called after request to server)
-            var updateData = function(newdata) {
-                dataset = newdata;
-                console.log("Updated dataset: ");
-                console.log(dataset);
-                console.log("qblock: " + dataset.qlen.blocked);
-                dataset.qblocked.forEach(function(job) {
-                    console.log(job.JobId);
-                });
-                console.log("qpend: " + dataset.qlen.pending);
-                dataset.qpending.forEach(function(job) {
-                    console.log(job.JobId);
-                });
-                console.log("qrun: " + dataset.qlen.running);
-                dataset.qrunning.forEach(function(job) {
-                    console.log(job.JobId);
-                });
-            };
-
-            /*
-             * Operation
-             */
-            // On initial page load, populate dataset with server's testout.json
-            dataset = JSON.parse({{ d3_dataset|tojson }});
-            console.log("Initial dataset: ");
-            console.log(dataset);
-
-        </script>
-
         <!-- 
         ---- BODY HTML
         --->
@@ -63,9 +25,39 @@
         --->
 
         <script type="text/javascript">
-            // Update data if update button clicked
-            $( "#update-datafile-button" )
-                .on( "click", function() {
+            /*
+             * Variables
+             */
+            // The raw data to visualize
+            var dataset;
+            // Drawing dimensions
+            var width  = 450;
+            var height = 450;
+            var margin = 40;
+            // Piechart radius
+            var inner_radius = 0;
+            var outer_radius = Math.min(width, height)/2 - margin;
+            // SVG object
+            var svg;
+            // Piechart data
+            var pie_data;
+            // Colors to use for the piechart
+            var color;
+            // Compute the position of each pie group
+            var pie = d3.pie()
+            	.value(function(d){ return d.value; });
+            // Path generator function for use with pie data
+            var arc = d3.arc()
+                .innerRadius(inner_radius)
+                .outerRadius(outer_radius);
+            // Placeholder for arc paths to be generated
+            var arcs;
+
+            /*
+             * Functions
+             */
+            // Function to get data from server and present it
+            var fetchData = function() {
                     $.ajax({
                         url: "/api/v0/fetch",
                         data: {
@@ -83,6 +75,70 @@
                             console.log(result);
                         }
                     });
+            };
+            // Function to update dataset (called after request to server)
+            var updateData = function(newdata) {
+                dataset = newdata;
+                console.log(dataset);
+                pie_data = [
+                    {"label": "running", "value": dataset.qrunning.length},
+                    {"label": "pending", "value": dataset.qpending.length},
+                    {"label": "blocked", "value": dataset.qblocked.length}
+                ];
+                // Define colors to use
+                color = d3.scaleOrdinal()
+                    .domain(pie_data.map(function(d){ return d.value; }))
+                    .range(["#98abc5", "#8a89a6", "#7b6888", "#6b486b", "#a05d56"]);
+                // Create groups per pie wedge
+                arcs = svg.selectAll("g.arc")
+                    .data(pie(pie_data)) // Use generated pie data for wedge groups
+                    .enter()
+                    .append("g")
+                    .attr("class", "arc")
+                    .attr("transform", "translate(" + outer_radius + ", " + outer_radius + ")"); // Shift group over and down by outer radius
+                // Draw arc paths
+                arcs.append("path")
+                    .attr("fill", function(d) {
+                        return color(d.value);
+                    })
+                    .attr("d", arc); // Use the arc function to generate the path
+                // Generate text labels
+                arcs.append("text")
+                    .attr("transform", function(data) {
+                        return "translate(" + arc.centroid(data) + ")"; // Put text at mathematical center of wedge
+                    })
+                    .attr("text-anchor", "middle") // Anchor text at the middle of it
+                    .text(function(data) {
+                        if( data.value > 0 ) {
+                            return data.data.label; // We must use .value because we converted to pie data
+                        } else {
+                            return;
+                        }
+                    });
+
+            };
+
+            /*
+             * Operation
+             */
+            // On initial page load, populate dataset with server's testout.json
+            dataset = JSON.parse({{ d3_dataset|tojson }});
+            console.log("Initial dataset: ");
+            console.log(dataset);
+            // Draw SVG area
+            svg = d3.select("#datavis-container")
+                .append("svg")
+                    .attr("width", width)
+                    .attr("height", height)
+            // Get data from server and present it
+            fetchData();
+            /*
+             * Event Handlers
+             */
+            // Update data if update button clicked
+            $( "#update-datafile-button" )
+                .on( "click", function() {
+                    fetchData();
                 });
         </script>
 {% endblock %}

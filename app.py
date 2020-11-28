@@ -18,10 +18,7 @@ Session(app)
 # Webroot
 @app.route("/")
 def index():
-    qsp.parseFilename("201005.1648/1.idle", "testout.json")
-    json_data=None
-    with open("static/testout.json", "r") as f:
-        json_data = f.readline()
+    json_data = qsp.parseFile("201005.1648/1.idle")
     return render_template("d3-test.html", d3_dataset=json_data)
 
 
@@ -31,7 +28,5 @@ def fetchFile():
     filename = request.args.get("filename")
     json_data = None
     if filename:
-        qsp.parseFilename(filename, "testout.json") 
-        with open("static/testout.json", "r") as f:
-            json_data = f.readline()
+        json_data = qsp.parseFile(filename) 
     return json.loads(json_data)

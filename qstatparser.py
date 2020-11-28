@@ -165,11 +165,21 @@ def parseFileDict(file):
     return result
 
 
-def parseFilename(infile, outfile):
+def parseFileToFile(infile, outfile):
+    """ Parse the contents of infile as a qstat logfile into json,
+        writing into outfile.
+    """
     result = parseFileDict("sample-files/qpat/logs/" + infile)
     result_json = json.dumps(result)
     with open("static/" + outfile, "w") as f:
         f.write(result_json)
+
+
+def parseFile(infile):
+    """ Parse the contents of infile as a qstat logfile into json,
+        returning the result.
+    """
+    return json.dumps(parseFileDict("sample-files/qpat/logs/" + infile))
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ from flask import Flask, render_template, request, redirect, url_for, session
 from flask_session import Session # Be able to store sessions server-side
 import json
 import qstatparser as qsp
+import qstatsync as qss
 
 # Create new Flask web application
 app = Flask(__name__)
@@ -22,11 +23,22 @@ def index():
     return render_template("d3-test.html", d3_dataset=json_data)
 
 
-# Update Slurm qpat file
-@app.route("/api/v0/fetch", methods=["GET"])
-def fetchFile():
+# Update Slurm example qpat file from local examples
+@app.route("/api/v0/fetch/examples", methods=["GET"])
+def fetchSampleFile():
     filename = request.args.get("filename")
     json_data = None
     if filename:
         json_data = qsp.parseFile(filename) 
+    return json.loads(json_data)
+
+
+# Get new Slurm qpat data from cluster (6.arbitrary-random)
+@app.route("/api/v0/fetch/newdata/arbitrary-random", methods=["GET"])
+def fetchNewFile():
+    filename = "6.arbitrary-random"
+    new_data = qss.getNewData(filename)
+    json_data = None
+    if new_data:
+        json_data = qsp.parseData(new_data) 
     return json.loads(json_data)

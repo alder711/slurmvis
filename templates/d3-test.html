@@ -1,3 +1,6 @@
+<!--
+# vim: et:ts=4:sw=4 
+-->
 {% extends "layout.html" %}
 
 {% block heading %}
@@ -14,30 +17,44 @@
         <h3>Test of D3 Stuff</h1>
 
         <div id="dataupdate-container">
-            <!-- Radio buttons for data source presets -->
-            <input type="radio" id="data-selection-1" name="data-selection" value="custom" checked>
-            <label for="data-selection-1">custom</label><br>
-            <input type="radio" id="data-selection-2" name="data-selection" value="idle">
-            <label for="data-selection-2">idle</label><br>
-            <input type="radio" id="data-selection-3" name="data-selection" value="small-short-full">
-            <label for="data-selection-3">small-short-full</label><br>
-            <input type="radio" id="data-selection-4" name="data-selection" value="large-head-long-small-tail">
-            <label for="data-selection-4">large-head-long-small-tail</label><br>
-            <input type="radio" id="data-selection-5" name="data-selection" value="large-head-long-small-tail-backfill-drain-gap">
-            <label for="data-selection-5">large-head-long-small-tail-backfill-drain-gap</label><br>
-            <input type="radio" id="data-selection-6" name="data-selection" value="large-head-long-small-tail-backfill-gap-filled-jobs-running">
-            <label for="data-selection-5">large-head-long-small-tail-backfill-gap-filled-jobs-running</label><br>
-            <input type="radio" id="data-selection-7" name="data-selection" value="arbitrary-random">
-            <label for="data-selection-7">arbitrary-random</label><br>
-            <input type="radio" id="data-selection-8" name="data-selection" value="dependent-jobs-tail">
-            <label for="data-selection-8">dependent-jobs-tail</label><br>
-            <input type="radio" id="data-selection-9" name="data-selection" value="tester">
-            <label for="data-selection-9">tester</label><br>
-            <!-- Custom data source input -->
-            <label for="filename">File:</label>
-            <input type="text" id="update-data-input" name="update-data" value="201005.1648/5.large-head-long-small-tail-backfill-gap-filled-jobs-running"><br><br>
-            <!-- Submit button -->
-            <button id="update-datafile-button" value="Update">Update</button>
+            <div id="data-source-selection-container">
+                <!-- Radio buttons for data source, either sample or Slurm cluster -->
+                <input type="radio" id="data-source-1" name="data-source" value="Sample Data" checked>
+                <label for="data-source-1">Sample Data</label>
+                <input type="radio" id="data-source-2" name="data-source" value="Real Data">
+                <label for="data-source-2">Real Data</label><br><br>
+            </div>
+            <div id="real-selection-container">
+                <h3>Test</h1>
+                <!-- Submit button -->
+                <button id="update-data-button" value="Update">Update</button>
+            </div>
+            <div id="sample-selection-container">
+                <!-- Radio buttons for data source sample presets -->
+                <input type="radio" id="sample-data-selection-1" name="data-selection" value="custom" checked>
+                <label for="sample-data-selection-1">custom</label><br>
+                <input type="radio" id="sample-data-selection-2" name="data-selection" value="idle">
+                <label for="sample-data-selection-2">idle</label><br>
+                <input type="radio" id="sample-data-selection-3" name="data-selection" value="small-short-full">
+                <label for="sample-data-selection-3">small-short-full</label><br>
+                <input type="radio" id="sample-data-selection-4" name="data-selection" value="large-head-long-small-tail">
+                <label for="sample-data-selection-4">large-head-long-small-tail</label><br>
+                <input type="radio" id="sample-data-selection-5" name="data-selection" value="large-head-long-small-tail-backfill-drain-gap">
+                <label for="sample-data-selection-5">large-head-long-small-tail-backfill-drain-gap</label><br>
+                <input type="radio" id="sample-data-selection-6" name="data-selection" value="large-head-long-small-tail-backfill-gap-filled-jobs-running">
+                <label for="sample-data-selection-5">large-head-long-small-tail-backfill-gap-filled-jobs-running</label><br>
+                <input type="radio" id="sample-data-selection-7" name="data-selection" value="arbitrary-random">
+                <label for="sample-data-selection-7">arbitrary-random</label><br>
+                <input type="radio" id="sample-data-selection-8" name="data-selection" value="dependent-jobs-tail">
+                <label for="sample-data-selection-8">dependent-jobs-tail</label><br>
+                <input type="radio" id="sample-data-selection-9" name="data-selection" value="tester">
+                <label for="sample-data-selection-9">tester</label><br>
+                <!-- Custom data source input -->
+                <label for="filename">File:</label>
+                <input type="text" id="update-data-input" name="update-data" value="201005.1648/5.large-head-long-small-tail-backfill-gap-filled-jobs-running"><br><br>
+                <!-- Submit button -->
+                <button id="update-datafile-button" value="Update">Update</button>
+            </div>
         </div>
         <div id="datavis-container">
         </div>
@@ -79,10 +96,30 @@
             /*
              * Functions
              */
-            // Function to get data from server and present it
-            var fetchData = function(source) {
+            // Function to get sample data from server and present it
+            var fetchSampleData = function(source) {
                     $.ajax({
-                        url: "/api/v0/fetch",
+                        url: "/api/v0/fetch/examples",
+                        data: {
+                            filename: source 
+                        },
+                        success: function(result) {
+                            if( result ) {
+                                updateData(result);
+                            } else {
+                                console.log("Result is null");
+                                console.log(result);
+                            }
+                        },
+                        fail: function(result) {
+                            console.log(result);
+                        }
+                    });
+            };
+            // Function to get qstat data from server and present it
+            var fetchRealData = function(source) {
+                    $.ajax({
+                        url: "/api/v0/fetch/newdata/arbitrary-random",
                         data: {
                             filename: source 
                         },
@@ -171,50 +208,65 @@
             // Get data from server and present it
             initData();
 
-            /*
-             * Event Handlers
-             */
-            // Update data if update button clicked
-            $( "#update-datafile-button" )
-                .on( "click", function() {
-                    var radio_val = $( "input[name='data-selection']:checked").val();
-                    var source;
-                    var prefix = "201005.1648/";
-                    if( radio_val ){
-                        switch( radio_val ){
-                            case "custom":
-                                source = document.getElementById("update-data-input").value;
-                                break;
-                            case "idle":
-                                source = prefix + "1.idle";
-                                break;
-                            case "small-short-full":
-                                source = prefix + "2.small-short-full";
-                                break;
-                            case "large-head-long-small-tail":
-                                source = prefix + "3.large-head-long-small-tail";
-                                break;
-                            case "large-head-long-small-tail-backfill-drain-gap":
-                                source = prefix + "4.large-head-long-small-tail-backfill-drain-gap";
-                                break;
-                            case "large-head-long-small-tail-backfill-gap-filled-jobs-running":
-                                source = prefix + "5.large-head-long-small-tail-backfill-gap-filled-jobs-running";
-                                break;
-                            case "arbitrary-random":
-                                source = prefix + "6.arbitrary-random";
-                                break;
-                            case "dependent-jobs-tail":
-                                source = prefix + "7.dependent-jobs-tail";
-                                break;
-                            case "tester":
-                                source = prefix + "tester";
-                                break;
-                            default:
-                                console.log("Unknown option: " + radio_val);
-                                return;
+            jQuery(document).ready(function() {
+                /*
+                 * Event Handlers
+                 */
+                // Update data if example update button clicked
+                $( "#update-datafile-button" )
+                    .on( "click", function() {
+                        var radio_val = $( "input[name='data-selection']:checked").val();
+                        var source;
+                        var prefix = "201005.1648/";
+                        if( radio_val ){
+                            switch( radio_val ){
+                                case "custom":
+                                    source = document.getElementById("update-data-input").value;
+                                    break;
+                                case "idle":
+                                    source = prefix + "1.idle";
+                                    break;
+                                case "small-short-full":
+                                    source = prefix + "2.small-short-full";
+                                    break;
+                                case "large-head-long-small-tail":
+                                    source = prefix + "3.large-head-long-small-tail";
+                                    break;
+                                case "large-head-long-small-tail-backfill-drain-gap":
+                                    source = prefix + "4.large-head-long-small-tail-backfill-drain-gap";
+                                    break;
+                                case "large-head-long-small-tail-backfill-gap-filled-jobs-running":
+                                    source = prefix + "5.large-head-long-small-tail-backfill-gap-filled-jobs-running";
+                                    break;
+                                case "arbitrary-random":
+                                    source = prefix + "6.arbitrary-random";
+                                    break;
+                                case "dependent-jobs-tail":
+                                    source = prefix + "7.dependent-jobs-tail";
+                                    break;
+                                case "tester":
+                                    source = prefix + "tester";
+                                    break;
+                                default:
+                                    console.log("Unknown option: " + radio_val);
+                                    return;
+                            }
                         }
-                    }
-                    fetchData(source);
-                });
+                        fetchSampleData(source);
+                    });
+                // Update data if real update button clicked
+                $( "#update-data-button" )
+                    .on( "click", function() {
+                        fetchRealData();
+                    });
+                $( 'input:radio[name="data-source"]' ).change(function() {
+                    if( $(this).val() == "Real Data" ){
+                        $( "#sample-selection-container" ).hide();
+                        $( "#real-selection-container" ).show();
+                    } else if( $(this).val() == "Sample Data" ){
+                        $( "#sample-selection-container" ).show();
+                        $( "#real-selection-container" ).hide();
+                    }});
+            });             
         </script>
 {% endblock %}

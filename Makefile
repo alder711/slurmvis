@@ -20,6 +20,21 @@ prereq:
 	# Install required Python packages
 	@pip install -r "$(MKFILE_DIR)/requirements.txt"
 
+relay:
+	$(MKFILE_DIR)/relay.sh
+
+help:
+	@echo "make <opt>"
+	@echo ""
+	@echo "Options:"
+	@echo ""
+	@echo " clean   Clean up files (from venv)."
+	@echo " help    Print this help message."
+	@echo " prereq  Check to see if all requirements are met."
+	@echo " run     Run Flask server locally in a Python venv."
+	@echo " relay   Start an SSH forwarder, calling ./relay.sh."
+	@echo ""
+
 clean:
 	@deactivate || cat /dev/null
 	rm -rf $(MKFILE_DIR)__pycache__

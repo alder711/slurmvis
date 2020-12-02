@@ -28,6 +28,7 @@
                 <h3>Test</h1>
                 <!-- Submit button -->
                 <button id="update-data-button" value="Update">Update</button>
+                <div id="loading-status-container" class="modal"></div>
             </div>
             <div id="sample-selection-container">
                 <!-- Radio buttons for data source sample presets -->
@@ -267,6 +268,11 @@
                         $( "#sample-selection-container" ).show();
                         $( "#real-selection-container" ).hide();
                     }});
+                // Update loading status on AJAX request
+                $(document).on({
+                    ajaxStart: function(){ $( "#loading-status-container" ).text("Loading..."); },
+                    ajaxStop:  function(){ $( "#loading-status-container" ).text(""); }
+                });
             });             
         </script>
 {% endblock %}

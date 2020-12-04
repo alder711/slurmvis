@@ -14,23 +14,25 @@
         <!-- 
         ---- BODY HTML
         --->
-        <h3>Test of D3 Stuff</h1>
+        <h1>SlurmVis</h1>
 
         <div id="dataupdate-container">
             <div id="data-source-selection-container">
+                <p>Select which source of data to use. "Sample Data" is for example logfiles that already exist on the Flask app. "Real Data" is for generating logfiles on a qstats-enabled Slurm cluster.</p>
                 <!-- Radio buttons for data source, either sample or Slurm cluster -->
-                <input type="radio" id="data-source-1" name="data-source" value="Sample Data" checked>
+                <input type="radio" id="data-source-1" name="data-source" value="Sample Data">
                 <label for="data-source-1">Sample Data</label>
-                <input type="radio" id="data-source-2" name="data-source" value="Real Data">
+                <input type="radio" id="data-source-2" name="data-source" value="Real Data" checked>
                 <label for="data-source-2">Real Data</label><br><br>
             </div>
             <div id="real-selection-container">
-                <h3>Test</h1>
+                <p>Gather data from Slurm server.</p>
                 <!-- Submit button -->
                 <button id="update-data-button" value="Update">Update</button>
                 <div id="loading-status-container" class="modal"></div>
             </div>
             <div id="sample-selection-container">
+                <p>Choose a sample file to visualize.</p>
                 <!-- Radio buttons for data source sample presets -->
                 <input type="radio" id="sample-data-selection-1" name="data-selection" value="custom" checked>
                 <label for="sample-data-selection-1">custom</label><br>
@@ -210,6 +212,14 @@
             initData();
 
             jQuery(document).ready(function() {
+                // Decide which menu to make visible
+                if( $( 'input:radio[name="data-source"]:checked' ).val() == "Real Data" ){
+                    $( "#sample-selection-container" ).hide();
+                    $( "#real-selection-container" ).show();
+                } else if( $('input:radio[name="data-source"]:checked').val() == "Sample Data" ){
+                    $( "#sample-selection-container" ).show();
+                    $( "#real-selection-container" ).hide();
+                }
                 /*
                  * Event Handlers
                  */
@@ -270,8 +280,14 @@
                     }});
                 // Update loading status on AJAX request
                 $(document).on({
-                    ajaxStart: function(){ $( "#loading-status-container" ).text("Loading..."); },
-                    ajaxStop:  function(){ $( "#loading-status-container" ).text(""); }
+                    ajaxStart: function(){ 
+                        $( "#loading-status-container" ).text("Loading..."); 
+                        $( "#update-data-button" ).prop("disabled", true);
+                    },
+                    ajaxStop:  function(){ 
+                        $( "#loading-status-container" ).text(""); 
+                        $( "#update-data-button" ).prop("disabled", false);
+                    }
                 });
             });             
         </script>

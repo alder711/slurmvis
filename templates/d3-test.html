@@ -70,16 +70,34 @@
              * Variables
              */
             // The raw data to visualize
-            var dataset;
-            // Drawing dimensions
-            var width  = 450;
-            var height = 450;
-            var margin = 40;
+            var dataset; // All data to work with
+            //// Drawing dimensions
+            //var width  = 450;
+            //var height = 450;
+            //var margin = 40;
+            // Schedule variables
+            var margin = {top: 20, right: 15, bottom: 15, left: 60}
+              , width = 960 - margin.left - margin.right
+              , height = 500 - margin.top - margin.bottom;
+            var pending_times;  // Will hold an array of pending jobs
+            var lane_height;    // Will hold the height of a lane once data is retrieved
+            var job_pad = 10;   // Spacing between a job rect and lane separator once data is retrieved
+            var job_height;     // Will hold the height of a job rect once data is retrieved
+            var jobIdScale;     // Scale to convert JobId to lane id
+            var timeScale;      // Scale to convert job duration to horizontal length
+            var lanes;          // Will hold an array of lanes, each with an id
+            var xaxis_pad = 20; // Padding for X axis
+            var yaxis_pad = 50; // Padding for Y axis
+            var ext;            // Will hold a helper function for laneScale once lanes are defined
+            var laneScale;      // Scale to convert lane ID to vertical distance
+            var num_ticks = 7;  // The number of ticks per axis
+            var xAxisTop;       // Will hold the top X axis function once data is retrieved
+            var xAxisBottom;    // Will hold the bottom X axis function once data is retrieved
             // Piechart radius
             var inner_radius = 0;
             var outer_radius = Math.min(width, height)/2 - margin;
             // SVG object
-            var svg;
+            var pie_svg;
             // Piechart data
             var pie_data;
             // Colors to use for the piechart
@@ -99,6 +117,35 @@
             /*
              * Functions
              */
+            // Function to parse Slurm timestamps
+            var parseTime = d3.timeParse("%Y-%m-%dT%H:%M:%S");            
+            // Function to add Slurm time difference to date
+            var addTimeDelta = function(dateobj, deltastr){
+                var newdateobj = new Date();
+                var vals = deltastr.split(":");
+                var hrs = parseInt(vals[0]);
+                var mins = parseInt(vals[1]);
+                var secs = parseInt(vals[2]);
+                newdateobj.setFullYear(dateobj.getFullYear(), dateobj.getMonth(), dateobj.getDate());
+                newdateobj.setHours(dateobj.getHours() + hrs);
+                newdateobj.setMinutes(dateobj.getMinutes() + mins);
+                newdateobj.setSeconds(dateobj.getSeconds() + secs);
+                return newdateobj;
+            }
+            // Function to get number of needed lanes, given an array of jobs
+            var getNumLanes = function(jobs){
+                var num_lanes = 0;
+                var map = new Map();
+                for( var item of jobs ){
+                    if( !map.has(item.JobId) ){
+                        map.set(item.JobId, true);
+                        num_lanes = num_lanes + 1;
+                    }
+                }
+                return num_lanes;
+            };
+            // Function to print time tick labels
+            var formatTickTime = d3.timeFormat("%H:%M:%S");
             // Function to get sample data from server and present it
             var fetchSampleData = function(source) {
                     $.ajax({
@@ -139,23 +186,124 @@
                         }
                     });
             };
+            // Function to get lanes, given an array of jobs
+            var getLanes = function(jobs){
+                var lanes = [];
+                var iter = 0;
+                var map = new Map();
+                for( var item of jobs ){
+                    if( !map.has(item.JobId) ){
+                        map.set(item.JobId, true);
+                        lanes.push({
+                            id: iter,
+                            JobId: item.JobId
+                        });
+                        iter = iter + 1;
+                    }
+                }
+                return lanes;
+            };
             // Function to initialize data when page is first loaded
             var initData = function() {
+                // Gather initial data
                 dataset = JSON.parse({{ d3_dataset|tojson }});
-                // Process pie-specific data
-                pie_data = [
-                    {"label": "running", "value": dataset.qrunning.length},
-                    {"label": "pending", "value": dataset.qpending.length},
-                    {"label": "blocked", "value": dataset.qblocked.length}
-                ];
-                // Draw SVG area
-                svg = d3.select("#datavis-container")
+                //// Process pie-specific data
+                //pie_data = [
+                //    {"label": "running", "value": dataset.qrunning.length},
+                //    {"label": "pending", "value": dataset.qpending.length},
+                //    {"label": "blocked", "value": dataset.qblocked.length}
+                //];
+                // Process pending scheduling data
+                pending_times = dataset.qpending.map(function(d){
+                    return { 
+                        JobId: d.JobId,
+                        EligibleTime: parseTime(d.EligibleTime),
+                        MaxFinish: addTimeDelta(parseTime(d.EligibleTime), d.TimeLimit)
+                    };
+                });
+                // Process number of needed lanes
+                lanes = getLanes(pending_times);
+                lane_height = (height - 2*xaxis_pad) / pending_times.length;
+                job_height = lane_height - (2 * job_pad);
+                // Process scales
+                ext = d3.extent(lanes, function(d){ return d.id; }); // Return min and max id
+                laneScale = d3.scaleLinear()
+                    .domain([ext[0], ext[1]+1 ])
+                    .range([xaxis_pad, height-(2*xaxis_pad)]);
+                timeScale = d3.scaleTime()
+                    .domain([
+                        d3.min(pending_times.map(function(d){ return d.EligibleTime; })),
+                        d3.max(pending_times.map(function(d){ return d.MaxFinish; }))
+                    ])
+                    .range([yaxis_pad, width-(2*yaxis_pad)]);
+                jobIdScale = d3.scaleOrdinal()
+                    .domain(pending_times.map(function(d){ return d.JobId; }))
+                    .range(lanes.map(function(d){ return d.id; }));
+                // Process axes
+                xAxisTop = d3.axisTop()
+                    .scale(timeScale)
+                    .tickFormat(formatTickTime)
+                    .ticks(num_ticks);
+                xAxisBottom = d3.axisBottom()
+                    .scale(timeScale)
+                    .tickFormat(formatTickTime)
+                    .ticks(num_ticks);
+                //// Draw Pie SVG area
+                //pie_svg = d3.select("#datavis-container")
+                //    .append("svg")
+                //        .attr("width", width)
+                //        .attr("height", height)
+                //    .append("g")
+                //        .attr("transform", "translate(" + outer_radius + ", " + outer_radius + ")"); // Shift group over and down by outer radius
+                // Draw Schedule SVG area
+                sched_svg = d3.select("#datavis-container")
                     .append("svg")
                         .attr("width", width)
                         .attr("height", height)
-                    .append("g")
-                        .attr("transform", "translate(" + outer_radius + ", " + outer_radius + ")"); // Shift group over and down by outer radius
-                updateData(dataset);
+                        .attr("class", "main-graph");
+                //sched_svg.selectAll(".xaxis text")
+                //    .attr("transform", function(d){
+                //        return "translate(" + this.getBBox().height*-2 + ",0)";
+                //    });
+                // Draw main schedule graph area
+                var main_graph = sched_svg.append("g")
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")") // Allow margins in top and left
+                    .attr("width", width)
+                    .attr("height", height);
+                // Draw lanes in main schedule graph
+                main_graph.selectAll(".lanelines")
+                    .data(lanes)
+                    .enter()
+                    .append("line")
+                        .attr("x1", yaxis_pad)
+                        .attr("y1", function(d){ return (laneScale(d.id)); })
+                        .attr("x2", width-(2*yaxis_pad))
+                        .attr("y2", function(d){ return (laneScale(d.id)); })
+                        .attr("stroke", "lightgray");
+                // Draw jobs in main schedule graph
+                var rects = main_graph.append("g")
+                    .selectAll(".job-items")
+                    .data(pending_times)
+                    .enter()
+                    .append("rect")
+                        .attr("x", function(d){ return timeScale(d.EligibleTime); })
+                        .attr("y", function(d){ return laneScale(jobIdScale(d.JobId)) + job_pad; })
+                        .attr("width", function(d){ return timeScale(d.MaxFinish) - timeScale(d.EligibleTime); })
+                        .attr("height", job_height)
+                        .attr("fill", "lightgreen");
+                // Draw axes
+                main_graph.append("g")
+                    .attr("class", "axis")
+                    .attr("class", "xaxis")
+                    .attr("class", "xaxistop")
+                    .attr("transform", "translate(0," + xaxis_pad + ")")
+                    .call(xAxisTop);
+                main_graph.append("g")
+                    .attr("class", "axis")
+                    .attr("class", "xaxis")
+                    .attr("class", "xaxisbottom")
+                    .attr("transform", "translate(0," + (height-(2*xaxis_pad)) + ")")
+                    .call(xAxisBottom);
             };
             // Function to update dataset (called after request to server)
             var updateData = function(newdata) {
@@ -177,7 +325,7 @@
                     .domain(pie_data.map(function(d){ return d.value; }))
                     .range(colors);
                 // Create groups per pie wedge
-                arcs = svg.selectAll("g.arc")
+                arcs = pie_svg.selectAll("g.arc")
                     .data(pie(pie_data)); // Use generated pie data for wedge groups
                 // Draw arc paths
                 arcs

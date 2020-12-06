@@ -80,19 +80,24 @@
               , width = 960 - margin.left - margin.right
               , height = 500 - margin.top - margin.bottom;
             var pending_times;  // Will hold an array of pending jobs
-            var lane_height;    // Will hold the height of a lane once data is retrieved
-            var job_pad = 10;   // Spacing between a job rect and lane separator once data is retrieved
+            var lane_height = 25; // Height of a lane
+            var job_pad = 5;   // Spacing between a job rect and lane separator once data is retrieved
             var job_height;     // Will hold the height of a job rect once data is retrieved
             var jobIdScale;     // Scale to convert JobId to lane id
             var timeScale;      // Scale to convert job duration to horizontal length
             var lanes;          // Will hold an array of lanes, each with an id
-            var xaxis_pad = 20; // Padding for X axis
+            var xaxis_pad = 50; // Padding for X axis
             var yaxis_pad = 50; // Padding for Y axis
             var ext;            // Will hold a helper function for laneScale once lanes are defined
             var laneScale;      // Scale to convert lane ID to vertical distance
             var num_ticks = 7;  // The number of ticks per axis
             var xAxisTop;       // Will hold the top X axis function once data is retrieved
             var xAxisBottom;    // Will hold the bottom X axis function once data is retrieved
+            var main_graph;     // Will hold the main schedule graph elements
+            var rects;          // Will hold the actual job rects
+            var lane_lines;     // Will hold all generated lane lines
+            var xaxis_top;      // Will hold the drawn top X axis
+            var xaxis_bottom;   // Will hold the drawn bottom X axis
             // Piechart radius
             var inner_radius = 0;
             var outer_radius = Math.min(width, height)/2 - margin;
@@ -201,43 +206,114 @@
                         iter = iter + 1;
                     }
                 }
+                lanes.push({ id: iter, JobId: "" });
                 return lanes;
             };
             // Function to initialize data when page is first loaded
             var initData = function() {
                 // Gather initial data
                 dataset = JSON.parse({{ d3_dataset|tojson }});
+
+                /*
+                 * PIE CHART
+                 */
                 //// Process pie-specific data
                 //pie_data = [
                 //    {"label": "running", "value": dataset.qrunning.length},
                 //    {"label": "pending", "value": dataset.qpending.length},
                 //    {"label": "blocked", "value": dataset.qblocked.length}
                 //];
+                //// Draw Pie SVG area
+                //pie_svg = d3.select("#datavis-container")
+                //    .append("svg")
+                //        .attr("width", width)
+                //        .attr("height", height)
+                //    .append("g")
+                //        .attr("transform", "translate(" + outer_radius + ", " + outer_radius + ")"); // Shift group over and down by outer radius
+                //// Process pie-specific data
+                //pie_data = [
+                //    {"label": "running", "value": dataset.qrunning.length},
+                //    {"label": "pending", "value": dataset.qpending.length},
+                //    {"label": "blocked", "value": dataset.qblocked.length}
+                //];
+                //// Check for case of no jobs
+                //if( pie_data[0].value == pie_data[1].value && pie_data[1].value == pie_data[2].value && pie_data[2].value == 0 ){
+                //    pie_data = [
+                //        {"label": "no jobs", "value": 1}
+                //    ];
+                //}
+                //// Define colors to use
+                //color = d3.scaleOrdinal()
+                //    .domain(pie_data.map(function(d){ return d.value; }))
+                //    .range(colors);
+                //// Create groups per pie wedge
+                //arcs = pie_svg.selectAll("g.arc")
+                //    .data(pie(pie_data)); // Use generated pie data for wedge groups
+                //// Draw arc paths
+                //arcs
+                //    .enter()
+                //    .append("path")
+                //    .attr("class", "arc")
+                //    .attr("fill", function(d, i) {
+                //        return color(i); // Color is dependent on index of category (queue)
+                //    })
+                //    .attr("d", arc) // Use the arc function to generate the path
+                //// Generate text labels
+                //arcs
+                //    .enter()
+                //    .append("text")
+                //    .attr("transform", function(d) {
+                //        return "translate(" + arc.centroid(d) + ")"; // Put text at mathematical center of wedge
+                //    })
+                //    .attr("text-anchor", "middle") // Anchor text at the middle of it
+                //    .text(function(d) {
+                //        if( d.value > 0 ) {
+                //            return d.data.label; // We must use .value because we converted to pie data
+                //        } else {
+                //            return;
+                //        }
+                //    });
+
+                /*
+                 * SCHEDULE GRAPH
+                 */
                 // Process pending scheduling data
-                pending_times = dataset.qpending.map(function(d){
-                    return { 
-                        JobId: d.JobId,
-                        EligibleTime: parseTime(d.EligibleTime),
-                        MaxFinish: addTimeDelta(parseTime(d.EligibleTime), d.TimeLimit)
-                    };
+                pending_times = { known: [], unknown: [] };
+                dataset.qpending.forEach(function(d){
+                    if( d.EligibleTime != "Unknown" ){
+                        pending_times.known.push({ 
+                            JobId: d.JobId,
+                            EligibleTime: parseTime(d.EligibleTime),
+                            MaxFinish: addTimeDelta(parseTime(d.EligibleTime), d.TimeLimit)
+                        });
+                    } else {
+                        pending_times.unknown.push({
+                            JobId: d.JobId,
+                            MaxFinish: d.TimeLimit
+                        });
+                    }
+                });
+                // Sort known pending jobs by start time
+                pending_times.known.sort(function(a, b){
+                    return (a.EligibleTime > b.EligibleTime) ? 1 : -1;
                 });
                 // Process number of needed lanes
-                lanes = getLanes(pending_times);
-                lane_height = (height - 2*xaxis_pad) / pending_times.length;
+                lanes = getLanes(pending_times.known);
+                height = (lane_height * pending_times.known.length) + (2 * xaxis_pad);
                 job_height = lane_height - (2 * job_pad);
                 // Process scales
                 ext = d3.extent(lanes, function(d){ return d.id; }); // Return min and max id
                 laneScale = d3.scaleLinear()
-                    .domain([ext[0], ext[1]+1 ])
-                    .range([xaxis_pad, height-(2*xaxis_pad)]);
+                    .domain([ext[0], ext[1] ])
+                    .range([xaxis_pad, height-(xaxis_pad)]);
                 timeScale = d3.scaleTime()
                     .domain([
-                        d3.min(pending_times.map(function(d){ return d.EligibleTime; })),
-                        d3.max(pending_times.map(function(d){ return d.MaxFinish; }))
+                        d3.min(pending_times.known.map(function(d){ return d.EligibleTime; })),
+                        d3.max(pending_times.known.map(function(d){ return d.MaxFinish; }))
                     ])
                     .range([yaxis_pad, width-(2*yaxis_pad)]);
                 jobIdScale = d3.scaleOrdinal()
-                    .domain(pending_times.map(function(d){ return d.JobId; }))
+                    .domain(pending_times.known.map(function(d){ return d.JobId; }))
                     .range(lanes.map(function(d){ return d.id; }));
                 // Process axes
                 xAxisTop = d3.axisTop()
@@ -248,109 +324,198 @@
                     .scale(timeScale)
                     .tickFormat(formatTickTime)
                     .ticks(num_ticks);
-                //// Draw Pie SVG area
-                //pie_svg = d3.select("#datavis-container")
-                //    .append("svg")
-                //        .attr("width", width)
-                //        .attr("height", height)
-                //    .append("g")
-                //        .attr("transform", "translate(" + outer_radius + ", " + outer_radius + ")"); // Shift group over and down by outer radius
                 // Draw Schedule SVG area
                 sched_svg = d3.select("#datavis-container")
                     .append("svg")
                         .attr("width", width)
                         .attr("height", height)
-                        .attr("class", "main-graph");
-                //sched_svg.selectAll(".xaxis text")
-                //    .attr("transform", function(d){
-                //        return "translate(" + this.getBBox().height*-2 + ",0)";
-                //    });
+                        .attr("class", "sched-svg");
                 // Draw main schedule graph area
-                var main_graph = sched_svg.append("g")
+                main_graph = sched_svg.append("g")
+                    .attr("class", "main-graph")
                     .attr("transform", "translate(" + margin.left + "," + margin.top + ")") // Allow margins in top and left
                     .attr("width", width)
                     .attr("height", height);
                 // Draw lanes in main schedule graph
-                main_graph.selectAll(".lanelines")
+                lane_lines = main_graph.append("g")
+                    .selectAll(".laneline")
                     .data(lanes)
                     .enter()
                     .append("line")
+                        .attr("class", "laneline")
                         .attr("x1", yaxis_pad)
                         .attr("y1", function(d){ return (laneScale(d.id)); })
                         .attr("x2", width-(2*yaxis_pad))
                         .attr("y2", function(d){ return (laneScale(d.id)); })
                         .attr("stroke", "lightgray");
                 // Draw jobs in main schedule graph
-                var rects = main_graph.append("g")
-                    .selectAll(".job-items")
-                    .data(pending_times)
+                rects = main_graph.append("g")
+                    .selectAll(".pending-job-item")
+                    .data(pending_times.known)
                     .enter()
                     .append("rect")
+                        .attr("class", "pending-job-item")
                         .attr("x", function(d){ return timeScale(d.EligibleTime); })
                         .attr("y", function(d){ return laneScale(jobIdScale(d.JobId)) + job_pad; })
                         .attr("width", function(d){ return timeScale(d.MaxFinish) - timeScale(d.EligibleTime); })
-                        .attr("height", job_height)
+                        .attr("height", lane_height - (2*job_pad) )
                         .attr("fill", "lightgreen");
                 // Draw axes
-                main_graph.append("g")
+                xaxis_top = main_graph.append("g")
                     .attr("class", "axis")
                     .attr("class", "xaxis")
                     .attr("class", "xaxistop")
                     .attr("transform", "translate(0," + xaxis_pad + ")")
                     .call(xAxisTop);
-                main_graph.append("g")
+                xaxis_bottoom = main_graph.append("g")
                     .attr("class", "axis")
                     .attr("class", "xaxis")
                     .attr("class", "xaxisbottom")
-                    .attr("transform", "translate(0," + (height-(2*xaxis_pad)) + ")")
+                    .attr("transform", "translate(0," + (height-xaxis_pad) + ")")
                     .call(xAxisBottom);
             };
             // Function to update dataset (called after request to server)
             var updateData = function(newdata) {
+                // Update dataset
                 dataset = newdata;
-                // Process pie-specific data
-                pie_data = [
-                    {"label": "running", "value": dataset.qrunning.length},
-                    {"label": "pending", "value": dataset.qpending.length},
-                    {"label": "blocked", "value": dataset.qblocked.length}
-                ];
-                // Check for case of no jobs
-                if( pie_data[0].value == pie_data[1].value && pie_data[1].value == pie_data[2].value && pie_data[2].value == 0 ){
-                    pie_data = [
-                        {"label": "no jobs", "value": 1}
-                    ];
-                }
-                // Define colors to use
-                color = d3.scaleOrdinal()
-                    .domain(pie_data.map(function(d){ return d.value; }))
-                    .range(colors);
-                // Create groups per pie wedge
-                arcs = pie_svg.selectAll("g.arc")
-                    .data(pie(pie_data)); // Use generated pie data for wedge groups
-                // Draw arc paths
-                arcs
-                    .enter()
-                    .append("path")
-                    .attr("class", "arc")
-                    .attr("fill", function(d, i) {
-                        return color(i); // Color is dependent on index of category (queue)
-                    })
-                    .attr("d", arc) // Use the arc function to generate the path
-                // Generate text labels
-                arcs
-                    .enter()
-                    .append("text")
-                    .attr("transform", function(d) {
-                        return "translate(" + arc.centroid(d) + ")"; // Put text at mathematical center of wedge
-                    })
-                    .attr("text-anchor", "middle") // Anchor text at the middle of it
-                    .text(function(d) {
-                        if( d.value > 0 ) {
-                            return d.data.label; // We must use .value because we converted to pie data
-                        } else {
-                            return;
-                        }
-                    });
+
+                /*
+                 * PIE CHART
+                 */
+                //// Process pie-specific data
+                //pie_data = [
+                //    {"label": "running", "value": dataset.qrunning.length},
+                //    {"label": "pending", "value": dataset.qpending.length},
+                //    {"label": "blocked", "value": dataset.qblocked.length}
+                //];
+                //// Check for case of no jobs
+                //if( pie_data[0].value == pie_data[1].value && pie_data[1].value == pie_data[2].value && pie_data[2].value == 0 ){
+                //    pie_data = [
+                //        {"label": "no jobs", "value": 1}
+                //    ];
+                //}
+                //// Define colors to use
+                //color = d3.scaleOrdinal()
+                //    .domain(pie_data.map(function(d){ return d.value; }))
+                //    .range(colors);
+                //// Create groups per pie wedge
+                //arcs = pie_svg.selectAll("g.arc")
+                //    .data(pie(pie_data)); // Use generated pie data for wedge groups
+                //// Draw arc paths
+                //arcs
+                //    .enter()
+                //    .append("path")
+                //    .attr("class", "arc")
+                //    .attr("fill", function(d, i) {
+                //        return color(i); // Color is dependent on index of category (queue)
+                //    })
+                //    .attr("d", arc) // Use the arc function to generate the path
+                //// Generate text labels
+                //arcs
+                //    .enter()
+                //    .append("text")
+                //    .attr("transform", function(d) {
+                //        return "translate(" + arc.centroid(d) + ")"; // Put text at mathematical center of wedge
+                //    })
+                //    .attr("text-anchor", "middle") // Anchor text at the middle of it
+                //    .text(function(d) {
+                //        if( d.value > 0 ) {
+                //            return d.data.label; // We must use .value because we converted to pie data
+                //        } else {
+                //            return;
+                //        }
+                //    });
+
+                /*
+                 * SCHEDULE GRAPH
+                 */
+                // Process pending scheduling data
+                pending_times = { known: [], unknown: [] };
+                dataset.qpending.forEach(function(d){
+                    if( d.EligibleTime != "Unknown" ){
+                        pending_times.known.push({ 
+                            JobId: d.JobId,
+                            EligibleTime: parseTime(d.EligibleTime),
+                            MaxFinish: addTimeDelta(parseTime(d.EligibleTime), d.TimeLimit)
+                        });
+                    } else {
+                        pending_times.unknown.push({
+                            JobId: d.JobId,
+                            MaxFinish: d.TimeLimit
+                        });
+                    }
+                });
+                // Sort known pending jobs by start time
+                pending_times.known.sort(function(a, b){
+                    return (a.EligibleTime > b.EligibleTime) ? 1 : -1;
+                });
+                // Update number of needed lanes
+                lanes = getLanes(pending_times.known);
+                height = (lane_height * pending_times.known.length) + (2 * xaxis_pad);
+                job_height = lane_height - (2 * job_pad);
+                // Update scales
+                ext = d3.extent(lanes, function(d){ return d.id; }); // Return min and max id
+                laneScale
+                    .domain([ext[0], ext[1] ])
+                    .range([xaxis_pad, height-xaxis_pad]);
+                timeScale
+                    .domain([
+                        d3.min(pending_times.known.map(function(d){ return d.EligibleTime; })),
+                        d3.max(pending_times.known.map(function(d){ return d.MaxFinish; }))
+                    ]);
+                jobIdScale
+                    .domain(pending_times.known.map(function(d){ return d.JobId; }))
+                    .range(lanes.map(function(d){ return d.id; }));
+                // Update SVG dimensions
+                sched_svg = d3.select(".sched-svg")
+                    .attr("height", height);
+                main_graph = d3.select(".main-graph")
+                    .attr("height", height);
+                // Update lanes in main schedule graph
+                lane_lines = main_graph.selectAll(".laneline")
+                    .data(lanes)
+                    .attr("class", "laneline")
+                    .attr("x1", yaxis_pad)
+                    .attr("y1", function(d){ return (laneScale(d.id)); })
+                    .attr("x2", width-(2*yaxis_pad))
+                    .attr("y2", function(d){ return (laneScale(d.id)); })
+                    .attr("stroke", "lightgray");
+                lane_lines.enter()
+                    .append("line")
+                        .attr("class", "laneline")
+                        .attr("x1", yaxis_pad)
+                        .attr("y1", function(d){ return (laneScale(d.id)); })
+                        .attr("x2", width-(2*yaxis_pad))
+                        .attr("y2", function(d){ return (laneScale(d.id)); })
+                        .attr("stroke", "lightgray");
+                lane_lines.exit()
+                    .remove()
+                // Update jobs in main schedule graph
+                rects = main_graph.selectAll(".pending-job-item")
+                    .data(pending_times.known)
+                    .attr("class", "pending-job-item")
+                    .attr("x", function(d){ return timeScale(d.EligibleTime); })
+                    .attr("y", function(d){ return laneScale(jobIdScale(d.JobId)) + job_pad; })
+                    .attr("width", function(d){ return timeScale(d.MaxFinish) - timeScale(d.EligibleTime); })
+                    .attr("height", lane_height - (2 * job_pad))
+                    .attr("fill", "lightgreen");
+                rects.enter()
+                    .append("rect")
+                        .attr("class", "pending-job-item")
+                        .attr("x", function(d){ return timeScale(d.EligibleTime); })
+                        .attr("y", function(d){ return laneScale(jobIdScale(d.JobId)) + job_pad; })
+                        .attr("width", function(d){ return timeScale(d.MaxFinish) - timeScale(d.EligibleTime); })
+                        .attr("height", lane_height - (2 * job_pad))
+                        .attr("fill", "lightgreen");
+                rects.exit()
+                    .remove()
+                // Update axes
+                main_graph.select(".xaxistop")
+                    .attr("transform", "translate(0," + xaxis_pad + ")")
+                    .call(xAxisTop);
+                main_graph.select(".xaxisbottom")
+                    .attr("transform", "translate(0," + (height-xaxis_pad) + ")")
+                    .call(xAxisBottom);
             };
 
             /*

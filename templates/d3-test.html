@@ -288,7 +288,8 @@
                         jobs_pending_times.known.push({ 
                             JobId: d.JobId,
                             EligibleTime: parseTime(d.EligibleTime),
-                            MaxFinish: addTimeDelta(parseTime(d.EligibleTime), d.TimeLimit)
+                            MaxFinish: addTimeDelta(parseTime(d.EligibleTime), d.TimeLimit),
+                            LastSchedEval: d.LastSchedEval
                         });
                     } else {
                         jobs_pending_times.unknown.push({
@@ -316,7 +317,7 @@
                     return (a.StartTime > b.StartTime) ? 1 : -1;
                 });
                 // Generate array of all known jobs for scaling
-                all_known_jobs = jobs_pending_times.known.concat(jobs_running_times).map(function(d){
+                all_known_jobs = jobs_running_times.concat(jobs_pending_times.known).map(function(d){
                     if( d.EligibleTime ){
                         return {
                             JobId: d.JobId,
@@ -333,6 +334,9 @@
                 });
                 // Process last queue evaluation
                 last_qeval = parseTime(d3.max(jobs_running_times.map(function(d){ return d.LastSchedEval; })));
+                if( !last_qeval ){
+                    last_qeval = parseTime(d3.max(jobs_pending_times.known.map(function(d){ return d.LastSchedEval; })));
+                }
                 // Process number of needed lanes
                 lanes = getLanes(all_known_jobs);
                 height = (lane_height * all_known_jobs.length) + (2 * xaxis_pad);
@@ -408,15 +412,6 @@
                         .attr("width", function(d){ return timeScale(d.MaxFinish) - timeScale(d.StartTime); })
                         .attr("height", lane_height - (2*job_pad) )
                         .attr("fill", "green");
-                // Draw schedule evaluation line
-                var sched_eval_marker = d3.select(".main-graph")
-                    .append("line")
-                    .attr("class", "sched-eval-marker")
-                    .attr("x1", function(d){ return timeScale(last_qeval); })
-                    .attr("y1", xaxis_pad)
-                    .attr("x2", function(){ return timeScale(last_qeval); })
-                    .attr("y2", function(){ return (height - xaxis_pad); })
-                    .attr("stroke", "blue");
                 // Draw axes
                 xaxis_top = main_graph.append("g")
                     .attr("class", "axis")
@@ -430,6 +425,15 @@
                     .attr("class", "xaxisbottom")
                     .attr("transform", "translate(0," + (height-xaxis_pad) + ")")
                     .call(xAxisBottom);
+                // Draw schedule evaluation line
+                sched_eval_marker = d3.select(".main-graph")
+                    .append("line")
+                    .attr("class", "sched-eval-marker")
+                    .attr("x1", function(d){ return timeScale(last_qeval); })
+                    .attr("y1", xaxis_pad)
+                    .attr("x2", function(){ return timeScale(last_qeval); })
+                    .attr("y2", function(){ return (height - xaxis_pad); })
+                    .attr("stroke", "blue");
             };
             // Function to update dataset (called after request to server)
             var updateData = function(newdata) {
@@ -493,7 +497,8 @@
                         jobs_pending_times.known.push({ 
                             JobId: d.JobId,
                             EligibleTime: parseTime(d.EligibleTime),
-                            MaxFinish: addTimeDelta(parseTime(d.EligibleTime), d.TimeLimit)
+                            MaxFinish: addTimeDelta(parseTime(d.EligibleTime), d.TimeLimit),
+                            LastSchedEval: d.LastSchedEval
                         });
                     } else {
                         jobs_pending_times.unknown.push({
@@ -506,22 +511,58 @@
                 jobs_pending_times.known.sort(function(a, b){
                     return (a.EligibleTime > b.EligibleTime) ? 1 : -1;
                 });
+                // Process running scheduling data
+                jobs_running_times = dataset.qrunning.map(function(d){
+                    return {
+                        JobId: d.JobId,
+                        StartTime: parseTime(d.StartTime),
+                        CurFinish: addTimeDelta(parseTime(d.StartTime), d.RunTime),
+                        MaxFinish: addTimeDelta(parseTime(d.StartTime), d.TimeLimit),
+                        LastSchedEval: d.LastSchedEval
+                    };
+                });
+                // Sort known running jobs by start time
+                jobs_running_times.sort(function(a, b){
+                    return (a.StartTime > b.StartTime) ? 1 : -1;
+                });
+                // Generate array of all known jobs for scaling
+                all_known_jobs = jobs_running_times.concat(jobs_pending_times.known).map(function(d){
+                    if( d.EligibleTime ){
+                        return {
+                            JobId: d.JobId,
+                            JobStart: d.EligibleTime,
+                            JobFinish: d.MaxFinish
+                        };
+                    } else {
+                        return {
+                            JobId: d.JobId,
+                            JobStart: d.StartTime,
+                            JobFinish: d.MaxFinish
+                        };
+                    }
+                });
+                // Update last queue evaluation
+                last_qeval = parseTime(d3.max(jobs_running_times.map(function(d){ return d.LastSchedEval; })));
+                if( !last_qeval ){
+                    last_qeval = parseTime(d3.max(jobs_pending_times.known.map(function(d){ return d.LastSchedEval; })));
+                }
                 // Update number of needed lanes
-                lanes = getLanes(jobs_pending_times.known);
-                height = (lane_height * jobs_pending_times.known.length) + (2 * xaxis_pad);
+                lanes = getLanes(all_known_jobs);
+                height = (lane_height * all_known_jobs.length) + (2 * xaxis_pad);
                 job_height = lane_height - (2 * job_pad);
                 // Update scales
                 ext = d3.extent(lanes, function(d){ return d.id; }); // Return min and max id
                 laneScale
                     .domain([ext[0], ext[1] ])
                     .range([xaxis_pad, height-xaxis_pad]);
-                timeScale
+                timeScale = d3.scaleTime()
                     .domain([
-                        d3.min(jobs_pending_times.known.map(function(d){ return d.EligibleTime; })),
-                        d3.max(jobs_pending_times.known.map(function(d){ return d.MaxFinish; }))
-                    ]);
-                jobIdScale
-                    .domain(jobs_pending_times.known.map(function(d){ return d.JobId; }))
+                        d3.min(all_known_jobs.map(function(d){ return d.JobStart; }).concat(last_qeval)),
+                        d3.max(all_known_jobs.map(function(d){ return d.JobFinish; }))
+                    ])
+                    .range([yaxis_pad, width-(2*yaxis_pad)]);
+                jobIdScale = d3.scaleOrdinal()
+                    .domain(all_known_jobs.map(function(d){ return d.JobId; }))
                     .range(lanes.map(function(d){ return d.id; }));
                 // Update SVG dimensions
                 sched_svg = d3.select(".sched-svg")
@@ -546,11 +587,10 @@
                         .attr("y2", function(d){ return (laneScale(d.id)); })
                         .attr("stroke", "lightgray");
                 lane_lines.exit()
-                    .remove()
-                // Update jobs in main schedule graph
+                    .remove();
+                // Update pending jobs in main schedule graph
                 pending_rects = main_graph.selectAll(".pending-job-item")
                     .data(jobs_pending_times.known)
-                    .attr("class", "pending-job-item")
                     .attr("x", function(d){ return timeScale(d.EligibleTime); })
                     .attr("y", function(d){ return laneScale(jobIdScale(d.JobId)) + job_pad; })
                     .attr("width", function(d){ return timeScale(d.MaxFinish) - timeScale(d.EligibleTime); })
@@ -565,7 +605,26 @@
                         .attr("height", lane_height - (2 * job_pad))
                         .attr("fill", "lightgreen");
                 pending_rects.exit()
-                    .remove()
+                    .remove();
+                // Update running jobs in main schedule graph
+                running_rects = main_graph.selectAll(".running-job-item")
+                    .data(jobs_running_times)
+                    .attr("class", "running-job-item")
+                    .attr("x", function(d){ return timeScale(d.StartTime); })
+                    .attr("y", function(d){ return laneScale(jobIdScale(d.JobId)) + job_pad; })
+                    .attr("width", function(d){ return timeScale(d.MaxFinish) - timeScale(d.StartTime); })
+                    .attr("height", lane_height - (2*job_pad) )
+                    .attr("fill", "green");
+                running_rects.enter()
+                    .append("rect")
+                        .attr("class", "running-job-item")
+                        .attr("x", function(d){ return timeScale(d.StartTime); })
+                        .attr("y", function(d){ return laneScale(jobIdScale(d.JobId)) + job_pad; })
+                        .attr("width", function(d){ return timeScale(d.MaxFinish) - timeScale(d.StartTime); })
+                        .attr("height", lane_height - (2*job_pad) )
+                        .attr("fill", "green");
+                running_rects.exit()
+                    .remove();
                 // Update axes
                 main_graph.select(".xaxistop")
                     .attr("transform", "translate(0," + xaxis_pad + ")")
@@ -573,6 +632,16 @@
                 main_graph.select(".xaxisbottom")
                     .attr("transform", "translate(0," + (height-xaxis_pad) + ")")
                     .call(xAxisBottom);
+                // Update schedule evaluation line
+                d3.select(".sched-eval-marker").remove()
+                sched_eval_marker = d3.select(".main-graph")
+                    .append("line")
+                    .attr("class", "sched-eval-marker")
+                    .attr("x1", function(d){ return timeScale(last_qeval); })
+                    .attr("y1", xaxis_pad)
+                    .attr("x2", function(){ return timeScale(last_qeval); })
+                    .attr("y2", function(){ return (height - xaxis_pad); })
+                    .attr("stroke", "blue");
             };
 
             /*

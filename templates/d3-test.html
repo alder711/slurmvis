@@ -79,7 +79,10 @@
             var margin = {top: 20, right: 15, bottom: 15, left: 60}
               , width = 960 - margin.left - margin.right
               , height = 500 - margin.top - margin.bottom;
-            var pending_times;  // Will hold an array of pending jobs
+            var jobs_pending_times;  // Will hold an array of pending jobs
+            var jobs_running_times;  // Will hold an array of running jobs
+            var all_known_jobs;      // Will hold an array of known pending and running jobs 
+            var last_qeval;          // Will hold time of last schedule evaluation
             var lane_height = 25; // Height of a lane
             var job_pad = 5;   // Spacing between a job rect and lane separator once data is retrieved
             var job_height;     // Will hold the height of a job rect once data is retrieved
@@ -94,7 +97,8 @@
             var xAxisTop;       // Will hold the top X axis function once data is retrieved
             var xAxisBottom;    // Will hold the bottom X axis function once data is retrieved
             var main_graph;     // Will hold the main schedule graph elements
-            var rects;          // Will hold the actual job rects
+            var pending_rects;  // Will hold the actual pending job rects
+            var running_rects;  // Will hold the actual running job rects
             var lane_lines;     // Will hold all generated lane lines
             var xaxis_top;      // Will hold the drawn top X axis
             var xaxis_bottom;   // Will hold the drawn bottom X axis
@@ -278,28 +282,60 @@
                  * SCHEDULE GRAPH
                  */
                 // Process pending scheduling data
-                pending_times = { known: [], unknown: [] };
+                jobs_pending_times = { known: [], unknown: [] };
                 dataset.qpending.forEach(function(d){
                     if( d.EligibleTime != "Unknown" ){
-                        pending_times.known.push({ 
+                        jobs_pending_times.known.push({ 
                             JobId: d.JobId,
                             EligibleTime: parseTime(d.EligibleTime),
                             MaxFinish: addTimeDelta(parseTime(d.EligibleTime), d.TimeLimit)
                         });
                     } else {
-                        pending_times.unknown.push({
+                        jobs_pending_times.unknown.push({
                             JobId: d.JobId,
                             MaxFinish: d.TimeLimit
                         });
                     }
                 });
                 // Sort known pending jobs by start time
-                pending_times.known.sort(function(a, b){
+                jobs_pending_times.known.sort(function(a, b){
                     return (a.EligibleTime > b.EligibleTime) ? 1 : -1;
                 });
+                // Process running scheduling data
+                jobs_running_times = dataset.qrunning.map(function(d){
+                    return {
+                        JobId: d.JobId,
+                        StartTime: parseTime(d.StartTime),
+                        CurFinish: addTimeDelta(parseTime(d.StartTime), d.RunTime),
+                        MaxFinish: addTimeDelta(parseTime(d.StartTime), d.TimeLimit),
+                        LastSchedEval: d.LastSchedEval
+                    };
+                });
+                // Sort known running jobs by start time
+                jobs_running_times.sort(function(a, b){
+                    return (a.StartTime > b.StartTime) ? 1 : -1;
+                });
+                // Generate array of all known jobs for scaling
+                all_known_jobs = jobs_pending_times.known.concat(jobs_running_times).map(function(d){
+                    if( d.EligibleTime ){
+                        return {
+                            JobId: d.JobId,
+                            JobStart: d.EligibleTime,
+                            JobFinish: d.MaxFinish
+                        };
+                    } else {
+                        return {
+                            JobId: d.JobId,
+                            JobStart: d.StartTime,
+                            JobFinish: d.MaxFinish
+                        };
+                    }
+                });
+                // Process last queue evaluation
+                last_qeval = parseTime(d3.max(jobs_running_times.map(function(d){ return d.LastSchedEval; })));
                 // Process number of needed lanes
-                lanes = getLanes(pending_times.known);
-                height = (lane_height * pending_times.known.length) + (2 * xaxis_pad);
+                lanes = getLanes(all_known_jobs);
+                height = (lane_height * all_known_jobs.length) + (2 * xaxis_pad);
                 job_height = lane_height - (2 * job_pad);
                 // Process scales
                 ext = d3.extent(lanes, function(d){ return d.id; }); // Return min and max id
@@ -308,12 +344,12 @@
                     .range([xaxis_pad, height-(xaxis_pad)]);
                 timeScale = d3.scaleTime()
                     .domain([
-                        d3.min(pending_times.known.map(function(d){ return d.EligibleTime; })),
-                        d3.max(pending_times.known.map(function(d){ return d.MaxFinish; }))
+                        d3.min(all_known_jobs.map(function(d){ return d.JobStart; }).concat(last_qeval)),
+                        d3.max(all_known_jobs.map(function(d){ return d.JobFinish; }))
                     ])
                     .range([yaxis_pad, width-(2*yaxis_pad)]);
                 jobIdScale = d3.scaleOrdinal()
-                    .domain(pending_times.known.map(function(d){ return d.JobId; }))
+                    .domain(all_known_jobs.map(function(d){ return d.JobId; }))
                     .range(lanes.map(function(d){ return d.id; }));
                 // Process axes
                 xAxisTop = d3.axisTop()
@@ -348,10 +384,10 @@
                         .attr("x2", width-(2*yaxis_pad))
                         .attr("y2", function(d){ return (laneScale(d.id)); })
                         .attr("stroke", "lightgray");
-                // Draw jobs in main schedule graph
-                rects = main_graph.append("g")
+                // Draw pending jobs in main schedule graph
+                pending_rects = main_graph.append("g")
                     .selectAll(".pending-job-item")
-                    .data(pending_times.known)
+                    .data(jobs_pending_times.known)
                     .enter()
                     .append("rect")
                         .attr("class", "pending-job-item")
@@ -360,6 +396,27 @@
                         .attr("width", function(d){ return timeScale(d.MaxFinish) - timeScale(d.EligibleTime); })
                         .attr("height", lane_height - (2*job_pad) )
                         .attr("fill", "lightgreen");
+                // Draw running jobs in main schedule graph
+                running_rects = main_graph.append("g")
+                    .selectAll(".running-job-item")
+                    .data(jobs_running_times)
+                    .enter()
+                    .append("rect")
+                        .attr("class", "running-job-item")
+                        .attr("x", function(d){ return timeScale(d.StartTime); })
+                        .attr("y", function(d){ return laneScale(jobIdScale(d.JobId)) + job_pad; })
+                        .attr("width", function(d){ return timeScale(d.MaxFinish) - timeScale(d.StartTime); })
+                        .attr("height", lane_height - (2*job_pad) )
+                        .attr("fill", "green");
+                // Draw schedule evaluation line
+                var sched_eval_marker = d3.select(".main-graph")
+                    .append("line")
+                    .attr("class", "sched-eval-marker")
+                    .attr("x1", function(d){ return timeScale(last_qeval); })
+                    .attr("y1", xaxis_pad)
+                    .attr("x2", function(){ return timeScale(last_qeval); })
+                    .attr("y2", function(){ return (height - xaxis_pad); })
+                    .attr("stroke", "blue");
                 // Draw axes
                 xaxis_top = main_graph.append("g")
                     .attr("class", "axis")
@@ -430,28 +487,28 @@
                  * SCHEDULE GRAPH
                  */
                 // Process pending scheduling data
-                pending_times = { known: [], unknown: [] };
+                jobs_pending_times = { known: [], unknown: [] };
                 dataset.qpending.forEach(function(d){
                     if( d.EligibleTime != "Unknown" ){
-                        pending_times.known.push({ 
+                        jobs_pending_times.known.push({ 
                             JobId: d.JobId,
                             EligibleTime: parseTime(d.EligibleTime),
                             MaxFinish: addTimeDelta(parseTime(d.EligibleTime), d.TimeLimit)
                         });
                     } else {
-                        pending_times.unknown.push({
+                        jobs_pending_times.unknown.push({
                             JobId: d.JobId,
                             MaxFinish: d.TimeLimit
                         });
                     }
                 });
                 // Sort known pending jobs by start time
-                pending_times.known.sort(function(a, b){
+                jobs_pending_times.known.sort(function(a, b){
                     return (a.EligibleTime > b.EligibleTime) ? 1 : -1;
                 });
                 // Update number of needed lanes
-                lanes = getLanes(pending_times.known);
-                height = (lane_height * pending_times.known.length) + (2 * xaxis_pad);
+                lanes = getLanes(jobs_pending_times.known);
+                height = (lane_height * jobs_pending_times.known.length) + (2 * xaxis_pad);
                 job_height = lane_height - (2 * job_pad);
                 // Update scales
                 ext = d3.extent(lanes, function(d){ return d.id; }); // Return min and max id
@@ -460,11 +517,11 @@
                     .range([xaxis_pad, height-xaxis_pad]);
                 timeScale
                     .domain([
-                        d3.min(pending_times.known.map(function(d){ return d.EligibleTime; })),
-                        d3.max(pending_times.known.map(function(d){ return d.MaxFinish; }))
+                        d3.min(jobs_pending_times.known.map(function(d){ return d.EligibleTime; })),
+                        d3.max(jobs_pending_times.known.map(function(d){ return d.MaxFinish; }))
                     ]);
                 jobIdScale
-                    .domain(pending_times.known.map(function(d){ return d.JobId; }))
+                    .domain(jobs_pending_times.known.map(function(d){ return d.JobId; }))
                     .range(lanes.map(function(d){ return d.id; }));
                 // Update SVG dimensions
                 sched_svg = d3.select(".sched-svg")
@@ -491,15 +548,15 @@
                 lane_lines.exit()
                     .remove()
                 // Update jobs in main schedule graph
-                rects = main_graph.selectAll(".pending-job-item")
-                    .data(pending_times.known)
+                pending_rects = main_graph.selectAll(".pending-job-item")
+                    .data(jobs_pending_times.known)
                     .attr("class", "pending-job-item")
                     .attr("x", function(d){ return timeScale(d.EligibleTime); })
                     .attr("y", function(d){ return laneScale(jobIdScale(d.JobId)) + job_pad; })
                     .attr("width", function(d){ return timeScale(d.MaxFinish) - timeScale(d.EligibleTime); })
                     .attr("height", lane_height - (2 * job_pad))
                     .attr("fill", "lightgreen");
-                rects.enter()
+                pending_rects.enter()
                     .append("rect")
                         .attr("class", "pending-job-item")
                         .attr("x", function(d){ return timeScale(d.EligibleTime); })
@@ -507,7 +564,7 @@
                         .attr("width", function(d){ return timeScale(d.MaxFinish) - timeScale(d.EligibleTime); })
                         .attr("height", lane_height - (2 * job_pad))
                         .attr("fill", "lightgreen");
-                rects.exit()
+                pending_rects.exit()
                     .remove()
                 // Update axes
                 main_graph.select(".xaxistop")

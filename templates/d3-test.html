@@ -8,6 +8,14 @@
     <title>D3 Testing</title>
     <script type="text/javascript" src="static/js/d3-6.2.0.js"></script>
     <script type="text/javascript" src="static/js/jquery-3.5.1.js"></script>
+    <style>
+        .sched-svg {
+            float: middle;
+        }
+        .pie-svg {
+            float: left;
+        }
+    </style>
 {% endblock %}
 
 {% block body %}
@@ -71,10 +79,32 @@
              */
             // The raw data to visualize
             var dataset; // All data to work with
-            //// Drawing dimensions
-            //var width  = 450;
-            //var height = 450;
-            //var margin = 40;
+
+            // Pie variables
+            var pie_width  = 350;
+            var pie_height = 350;
+            var pie_margin = 40;
+            // Piechart radius
+            var pie_inner_radius = 0;
+            var pie_outer_radius = Math.min(pie_width, pie_height)/2 - pie_margin;
+            // Pie SVG object
+            var pie_svg;
+            // Piechart data
+            var pie_data;
+            // Colors to use for the piechart
+            var pie_color;
+            // Compute the position of each pie group
+            var pie = d3.pie()
+            	.value(function(d){ return d.value; });
+            // Path generator function for use with pie data
+            var pie_arc = d3.arc()
+                .innerRadius(pie_inner_radius)
+                .outerRadius(pie_outer_radius);
+            // Placeholder for arc paths to be generated
+            var pie_arcs;
+            // List of colors to use
+            var pie_colors = ["#98abc5", "#8a89a6", "#7b6888", "#6b486b", "#a05d56"];
+
             // Schedule variables
             var margin = {top: 20, right: 15, bottom: 15, left: 60}
               , width = 960 - margin.left - margin.right
@@ -102,26 +132,7 @@
             var lane_lines;     // Will hold all generated lane lines
             var xaxis_top;      // Will hold the drawn top X axis
             var xaxis_bottom;   // Will hold the drawn bottom X axis
-            // Piechart radius
-            var inner_radius = 0;
-            var outer_radius = Math.min(width, height)/2 - margin;
-            // SVG object
-            var pie_svg;
-            // Piechart data
-            var pie_data;
-            // Colors to use for the piechart
-            var color;
-            // Compute the position of each pie group
-            var pie = d3.pie()
-            	.value(function(d){ return d.value; });
-            // Path generator function for use with pie data
-            var arc = d3.arc()
-                .innerRadius(inner_radius)
-                .outerRadius(outer_radius);
-            // Placeholder for arc paths to be generated
-            var arcs;
-            // List of colors to use
-            var colors = ["#98abc5", "#8a89a6", "#7b6888", "#6b486b", "#a05d56"];
+
 
             /*
              * Functions
@@ -141,18 +152,6 @@
                 newdateobj.setSeconds(dateobj.getSeconds() + secs);
                 return newdateobj;
             }
-            // Function to get number of needed lanes, given an array of jobs
-            var getNumLanes = function(jobs){
-                var num_lanes = 0;
-                var map = new Map();
-                for( var item of jobs ){
-                    if( !map.has(item.JobId) ){
-                        map.set(item.JobId, true);
-                        num_lanes = num_lanes + 1;
-                    }
-                }
-                return num_lanes;
-            };
             // Function to print time tick labels
             var formatTickTime = d3.timeFormat("%H:%M:%S");
             // Function to get sample data from server and present it
@@ -221,62 +220,63 @@
                 /*
                  * PIE CHART
                  */
-                //// Process pie-specific data
-                //pie_data = [
-                //    {"label": "running", "value": dataset.qrunning.length},
-                //    {"label": "pending", "value": dataset.qpending.length},
-                //    {"label": "blocked", "value": dataset.qblocked.length}
-                //];
-                //// Draw Pie SVG area
-                //pie_svg = d3.select("#datavis-container")
-                //    .append("svg")
-                //        .attr("width", width)
-                //        .attr("height", height)
-                //    .append("g")
-                //        .attr("transform", "translate(" + outer_radius + ", " + outer_radius + ")"); // Shift group over and down by outer radius
-                //// Process pie-specific data
-                //pie_data = [
-                //    {"label": "running", "value": dataset.qrunning.length},
-                //    {"label": "pending", "value": dataset.qpending.length},
-                //    {"label": "blocked", "value": dataset.qblocked.length}
-                //];
-                //// Check for case of no jobs
-                //if( pie_data[0].value == pie_data[1].value && pie_data[1].value == pie_data[2].value && pie_data[2].value == 0 ){
-                //    pie_data = [
-                //        {"label": "no jobs", "value": 1}
-                //    ];
-                //}
-                //// Define colors to use
-                //color = d3.scaleOrdinal()
-                //    .domain(pie_data.map(function(d){ return d.value; }))
-                //    .range(colors);
-                //// Create groups per pie wedge
-                //arcs = pie_svg.selectAll("g.arc")
-                //    .data(pie(pie_data)); // Use generated pie data for wedge groups
-                //// Draw arc paths
-                //arcs
-                //    .enter()
-                //    .append("path")
-                //    .attr("class", "arc")
-                //    .attr("fill", function(d, i) {
-                //        return color(i); // Color is dependent on index of category (queue)
-                //    })
-                //    .attr("d", arc) // Use the arc function to generate the path
-                //// Generate text labels
-                //arcs
-                //    .enter()
-                //    .append("text")
-                //    .attr("transform", function(d) {
-                //        return "translate(" + arc.centroid(d) + ")"; // Put text at mathematical center of wedge
-                //    })
-                //    .attr("text-anchor", "middle") // Anchor text at the middle of it
-                //    .text(function(d) {
-                //        if( d.value > 0 ) {
-                //            return d.data.label; // We must use .value because we converted to pie data
-                //        } else {
-                //            return;
-                //        }
-                //    });
+                // Process pie-specific data
+                pie_data = [
+                    {"label": "running", "value": dataset.qrunning.length},
+                    {"label": "pending", "value": dataset.qpending.length},
+                    {"label": "blocked", "value": dataset.qblocked.length}
+                ];
+                // Draw Pie SVG area
+                pie_svg = d3.select("#datavis-container")
+                    .append("svg")
+                        .attr("class", "pie-svg")
+                        .attr("width", pie_width)
+                        .attr("height", pie_height)
+                    .append("g")
+                        .attr("transform", "translate(" + pie_outer_radius + ", " + pie_outer_radius + ")"); // Shift group over and down by outer radius
+                // Process pie-specific data
+                pie_data = [
+                    {"label": "running", "value": dataset.qrunning.length},
+                    {"label": "pending", "value": dataset.qpending.length},
+                    {"label": "blocked", "value": dataset.qblocked.length}
+                ];
+                // Check for case of no jobs
+                if( pie_data[0].value == pie_data[1].value && pie_data[1].value == pie_data[2].value && pie_data[2].value == 0 ){
+                    pie_data = [
+                        {"label": "no jobs", "value": 1}
+                    ];
+                }
+                // Define colors to use
+                pie_color = d3.scaleOrdinal()
+                    .domain(pie_data.map(function(d){ return d.value; }))
+                    .range(pie_colors);
+                // Create groups per pie wedge
+                pie_arcs = pie_svg.selectAll("g.arc")
+                    .data(pie(pie_data)); // Use generated pie data for wedge groups
+                // Draw arc paths
+                pie_arcs
+                    .enter()
+                    .append("path")
+                    .attr("class", "arc")
+                    .attr("fill", function(d, i) {
+                        return pie_color(i); // Color is dependent on index of category (queue)
+                    })
+                    .attr("d", pie_arc) // Use the arc function to generate the path
+                // Generate text labels
+                pie_arcs
+                    .enter()
+                    .append("text")
+                    .attr("transform", function(d) {
+                        return "translate(" + pie_arc.centroid(d) + ")"; // Put text at mathematical center of wedge
+                    })
+                    .attr("text-anchor", "middle") // Anchor text at the middle of it
+                    .text(function(d) {
+                        if( d.value > 0 ) {
+                            return d.data.label; // We must use .value because we converted to pie data
+                        } else {
+                            return;
+                        }
+                    });
 
                 /*
                  * SCHEDULE GRAPH
@@ -443,49 +443,49 @@
                 /*
                  * PIE CHART
                  */
-                //// Process pie-specific data
-                //pie_data = [
-                //    {"label": "running", "value": dataset.qrunning.length},
-                //    {"label": "pending", "value": dataset.qpending.length},
-                //    {"label": "blocked", "value": dataset.qblocked.length}
-                //];
-                //// Check for case of no jobs
-                //if( pie_data[0].value == pie_data[1].value && pie_data[1].value == pie_data[2].value && pie_data[2].value == 0 ){
-                //    pie_data = [
-                //        {"label": "no jobs", "value": 1}
-                //    ];
-                //}
-                //// Define colors to use
-                //color = d3.scaleOrdinal()
-                //    .domain(pie_data.map(function(d){ return d.value; }))
-                //    .range(colors);
-                //// Create groups per pie wedge
-                //arcs = pie_svg.selectAll("g.arc")
-                //    .data(pie(pie_data)); // Use generated pie data for wedge groups
-                //// Draw arc paths
-                //arcs
-                //    .enter()
-                //    .append("path")
-                //    .attr("class", "arc")
-                //    .attr("fill", function(d, i) {
-                //        return color(i); // Color is dependent on index of category (queue)
-                //    })
-                //    .attr("d", arc) // Use the arc function to generate the path
-                //// Generate text labels
-                //arcs
-                //    .enter()
-                //    .append("text")
-                //    .attr("transform", function(d) {
-                //        return "translate(" + arc.centroid(d) + ")"; // Put text at mathematical center of wedge
-                //    })
-                //    .attr("text-anchor", "middle") // Anchor text at the middle of it
-                //    .text(function(d) {
-                //        if( d.value > 0 ) {
-                //            return d.data.label; // We must use .value because we converted to pie data
-                //        } else {
-                //            return;
-                //        }
-                //    });
+                // Process pie-specific data
+                pie_data = [
+                    {"label": "running", "value": dataset.qrunning.length},
+                    {"label": "pending", "value": dataset.qpending.length},
+                    {"label": "blocked", "value": dataset.qblocked.length}
+                ];
+                // Check for case of no jobs
+                if( pie_data[0].value == pie_data[1].value && pie_data[1].value == pie_data[2].value && pie_data[2].value == 0 ){
+                    pie_data = [
+                        {"label": "no jobs", "value": 1}
+                    ];
+                }
+                // Define colors to use
+                pie_color = d3.scaleOrdinal()
+                    .domain(pie_data.map(function(d){ return d.value; }))
+                    .range(pie_colors);
+                // Create groups per pie wedge
+                pie_arcs = pie_svg.selectAll("g.arc")
+                    .data(pie(pie_data)); // Use generated pie data for wedge groups
+                // Draw arc paths
+                pie_arcs
+                    .enter()
+                    .append("path")
+                    .attr("class", "arc")
+                    .attr("fill", function(d, i) {
+                        return pie_color(i); // Color is dependent on index of category (queue)
+                    })
+                    .attr("d", pie_arc) // Use the arc function to generate the path
+                // Generate text labels
+                pie_arcs
+                    .enter()
+                    .append("text")
+                    .attr("transform", function(d) {
+                        return "translate(" + pie_arc.centroid(d) + ")"; // Put text at mathematical center of wedge
+                    })
+                    .attr("text-anchor", "middle") // Anchor text at the middle of it
+                    .text(function(d) {
+                        if( d.value > 0 ) {
+                            return d.data.label; // We must use .value because we converted to pie data
+                        } else {
+                            return;
+                        }
+                    });
 
                 /*
                  * SCHEDULE GRAPH

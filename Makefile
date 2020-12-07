@@ -11,7 +11,8 @@ prereq:
 	@/usr/bin/which python3 2>&1 >/dev/null || \
 		( echo "Python 3.x not installed, exiting." ; exit 1 )
 	# Try to Activate venv
-	@. "$(MKFILE_DIR)"bin/activate
+	@-. "$(MKFILE_DIR)"bin/activate || \
+		( echo "Could not activate venv." )
 	# Check to see if in virtual environment
 	@python3 -c "import sys; sys.exit(0) if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix) else sys.exit(1)" || \
 		( echo "Not in a venv, creating..." ; python3 -m venv "$(MKFILE_DIR)" )
